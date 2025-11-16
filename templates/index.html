@@ -23,7 +23,7 @@
         </div>
 
         <div class="post-timestamp">
-            {{ post.timestamp.strftime('%Y년 %m월 %d일') }}
+            {{ post.timestamp | kst }}
         </div>
     </article>
     {% else %}

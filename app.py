@@ -1,6 +1,6 @@
 import os
 from datetime import date, timedelta, datetime
-from flask import Flask, render_template, request, redirect, url_for, flash, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, abort, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -19,11 +19,27 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(BASE_DIR, 'o
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 
+# "영구" 세션의 수명을 365일로 설정
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
+# Flask-Login의 "Remember Me" 쿠키 수명을 365일로 설정
+app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=365)
+
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'  # 로그인이 필요한 페이지 접근 시 'login' 라우트로 리다이렉트
 login_manager.login_message = "로그인이 필요합니다."
 
+@app.template_filter('kst')
+def format_kst(utc_datetime):
+    """UTC 시간을 KST (UTC+9)로 변환하고 포맷팅하는 필터"""
+    if not utc_datetime:
+        return ""
+
+    # KST는 UTC+9
+    kst_datetime = utc_datetime + timedelta(hours=9)
+
+    # 원하는 날짜/시간 형식으로 반환
+    return kst_datetime.strftime('%Y년 %m월 %d일 %H:%M')
 
 # --- 2. 데이터베이스 모델 ---
 
@@ -109,7 +125,9 @@ def login():
             flash('아이디 또는 비밀번호가 올바르지 않습니다.')
             return redirect(url_for('login'))
 
-        login_user(user)  # Flask-Login을 통해 세션에 사용자 정보 저장
+        login_user(user, remember=True)  # Flask-Login을 통해 세션에 사용자 정보 저장
+        session.permanent = True
+
         return redirect(url_for('index'))
 
     return render_template('login.html')
@@ -176,57 +194,58 @@ def profile(username):
     user = User.query.filter_by(username=username).first_or_404()
 
     # --- 핵심 로직: 통계 계산 ---
-    today = date.today()
-    current_year = today.year
-    current_month = today.month
+    kst_now = datetime.utcnow() + timedelta(hours=9)
+    today_kst = kst_now.date() # KST 기준 오늘 날짜 (예: 2025-11-17)
+    current_year = today_kst.year
+    current_month = today_kst.month
 
     # 1. 사용자의 모든 운동 기록 (날짜만, 중복 제거)
     workout_dates_query = db.session.query(
-        func.date(Post.timestamp)
+        func.date(func.datetime(Post.timestamp, '+9 hours'))
     ).filter(Post.user_id == user.id).distinct().order_by(
-        func.date(Post.timestamp).desc()
+        func.date(func.datetime(Post.timestamp, '+9 hours')).desc()
     )
 
     # 쿼리 결과를 set(날짜 객체)으로 변환
     # 쿼리 결과를 set(날짜 객체)으로 변환
     # r[0]는 'YYYY-MM-DD' 문자열이므로 date 객체로 변환
-    workout_dates = {
+    # 3. KST 날짜 문자열('YYYY-MM-DD')을 date 객체 set으로 변환
+    workout_dates_kst = {
         datetime.strptime(r[0], '%Y-%m-%d').date()
         for r in workout_dates_query.all()
-    }  # 👈 이렇게 수정
+    }
+    
 
     # 2. 연속 운동일 (Streak) 계산
     streak = 0
-    check_date = today
+    check_date = today_kst
 
-    # 오늘 운동했는지 확인
-    if check_date in workout_dates:
+    # 오늘(KST) 운동했는지 확인
+    if check_date in workout_dates_kst:
         streak += 1
         check_date -= timedelta(days=1)
-        # 어제부터 거슬러 올라가며 확인
-        while check_date in workout_dates:
+        # 어제(KST)부터 거슬러 올라가며 확인
+        while check_date in workout_dates_kst:
             streak += 1
             check_date -= timedelta(days=1)
-    # 오늘 안했으면 어제 운동했는지 확인
-    elif (check_date - timedelta(days=1)) in workout_dates:
-        check_date -= timedelta(days=1)  # 어제부터 시작
+    # 오늘(KST) 안 했으면, 어제(KST) 운동했는지 확인
+    elif (check_date - timedelta(days=1)) in workout_dates_kst:
+        check_date -= timedelta(days=1) # 어제부터 시작
         streak += 1
         check_date -= timedelta(days=1)
-        while check_date in workout_dates:
+        while check_date in workout_dates_kst:
             streak += 1
             check_date -= timedelta(days=1)
 
-    # 3. 이번 달 운동 일수
-    start_of_month = date(current_year, current_month, 1)
-    monthly_count = sum(1 for d in workout_dates if d >= start_of_month)
+    # 5. (수정) 이번 달 운동 일수 (KST 기준)
+    start_of_month_kst = date(current_year, current_month, 1)
+    monthly_count = sum(1 for d in workout_dates_kst if d >= start_of_month_kst)
 
-    # 4. 캘린더 데이터 생성 (HTML 템플릿에서 쉽게 사용하도록)
-    # calendar.monthcalendar()는 [ [주1], [주2], ... ] 형태의 리스트를 반환
-    # (0은 해당 월의 날짜가 아님을 의미)
+    # 6. 캘린더 데이터 생성
     cal_data = calendar.monthcalendar(current_year, current_month)
 
-    # 템플릿에서 날짜(일)가 workout_dates set에 있는지 바로 확인
-    workout_days_this_month = {d.day for d in workout_dates if d.year == current_year and d.month == current_month}
+    # 7. (수정) 이번 달 캘린더에 표시할 날짜 (KST 기준)
+    workout_days_this_month = {d.day for d in workout_dates_kst if d.year == current_year and d.month == current_month}
 
     return render_template(
         'profile.html',
@@ -234,8 +253,8 @@ def profile(username):
         streak=streak,
         monthly_count=monthly_count,
         calendar_data=cal_data,
-        workout_days=workout_days_this_month,  # 이번 달 운동한 '일'자만 set으로
-        today=today
+        workout_days=workout_days_this_month,
+        today=today_kst # KST 오늘 날짜를 템플릿으로 전달
     )
 
 # app.py 파일 맨 아래, if __name__ == '__main__': 구문 *위에* 추가하세요.
