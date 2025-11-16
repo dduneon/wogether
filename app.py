@@ -238,6 +238,38 @@ def profile(username):
         today=today
     )
 
+# app.py 파일 맨 아래, if __name__ == '__main__': 구문 *위에* 추가하세요.
+
+@app.route('/post/<int:post_id>/delete', methods=['POST'])
+@login_required
+def delete_post(post_id):
+    # 1. 삭제할 게시물을 DB에서 찾습니다. 없으면 404 오류.
+    post_to_delete = Post.query.get_or_404(post_id)
+
+    # 2. (핵심) 현재 로그인한 유저가 이 포스트의 작성자인지 확인합니다.
+    if post_to_delete.author != current_user:
+        # 작성자가 아니면 403 (Forbidden) 오류를 발생시킵니다.
+        abort(403)
+
+    try:
+        # 3. (중요) static/uploads 폴더에서 실제 이미지 파일을 삭제합니다.
+        image_path = os.path.join(app.config['UPLOAD_FOLDER'], post_to_delete.image_filename)
+        if os.path.exists(image_path):
+            os.remove(image_path)
+
+        # 4. 데이터베이스에서 게시물 기록을 삭제합니다.
+        db.session.delete(post_to_delete)
+        db.session.commit()
+
+        flash('게시물이 성공적으로 삭제되었습니다.')
+
+    except Exception as e:
+        # 파일 삭제나 DB 삭제 중 오류가 나면 롤백합니다.
+        db.session.rollback()
+        flash(f'삭제 중 오류가 발생했습니다: {e}')
+
+    # 5. 작업 완료 후, 본인의 프로필 페이지로 돌아갑니다.
+    return redirect(url_for('profile', username=current_user.username))
 
 # --- 5. 앱 실행 ---
 if __name__ == '__main__':

@@ -174,6 +174,36 @@ a {
     padding-bottom: 100%; /* 1:1 비율 유지 */
 }
 
+/* 삭제 폼 (버튼 감싸기) */
+.delete-form {
+    position: absolute;
+    top: 8px;   /* 이미지 모서리에서 살짝 띄움 */
+    right: 8px;
+    z-index: 10; /* 이미지 위에 표시 */
+}
+
+/* 삭제 버튼 (X) */
+.delete-button {
+    background-color: rgba(230, 0, 0, 0.75); /* 반투명 빨간색 */
+    color: white;
+    border: none;
+    border-radius: 50%; /* 원형 버튼 */
+    width: 25px;
+    height: 25px;
+    line-height: 23px; /* X 아이콘 중앙 정렬 (폰트에 따라 미세조정) */
+    text-align: center;
+    font-size: 1.2em;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    transition: background-color 0.2s;
+}
+
+.delete-button:hover {
+    background-color: rgba(230, 0, 0, 1.0); /* 호버 시 더 진한 빨간색 */
+}
+
 .grid-item img {
     position: absolute;
     width: 100%;

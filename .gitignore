@@ -212,4 +212,5 @@ __marimo__/
 # private
 *.db
 *.out
-
+*.bak
+utils/

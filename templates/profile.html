@@ -54,6 +54,18 @@
     {% for post in user.posts|sort(attribute='timestamp', reverse=True) %}
     <div class="grid-item">
         <img src="{{ post.image_url }}" alt="{{ post.caption or '포스트 이미지' }}">
+        {% if current_user == user %}
+        <form
+            action="{{ url_for('delete_post', post_id=post.id) }}"
+            method="POST"
+            class="delete-form"
+            onsubmit="return confirm('정말 이 게시물을 삭제하시겠습니까?');">
+
+            <button type="submit" class="delete-button">
+                &times; </button>
+        </form>
+        {% endif %}
+
         </div>
     {% else %}
     <p>아직 운동 기록이 없습니다.</p>
