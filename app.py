@@ -49,7 +49,11 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)  # 아이디
     nickname = db.Column(db.String(80), nullable=False)
     password_hash = db.Column(db.String(128))
-    posts = db.relationship('Post', backref='author', lazy=True)  # Post 모델과 관계 설정
+    # vvvv 수정: cascade(종속 삭제) 옵션 추가 및 새 관계 정의 vvvv
+    posts = db.relationship('Post', backref='author', lazy=True, cascade='all, delete-orphan')
+    likes = db.relationship('Like', backref='author', lazy='dynamic', cascade='all, delete-orphan')
+    comments = db.relationship('Comment', backref='author', lazy='dynamic', cascade='all, delete-orphan')
+    # ^^^^ 수정 완료 ^^^^
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -67,15 +71,61 @@ class Post(db.Model):
     caption = db.Column(db.String(200), nullable=True)
     timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # vvvv 수정: 새 관계 정의 vvvv
+    likes = db.relationship('Like', backref='post', lazy='dynamic', cascade='all, delete-orphan')
+    # (수정) 댓글이 항상 오래된순(asc)으로 정렬되도록 lambda로 기본값 설정
+    comments = db.relationship(
+        'Comment',
+        backref='post',
+        lazy='dynamic',
+        cascade='all, delete-orphan',
+        order_by=lambda: Comment.timestamp.asc() # 👈 이 라인 추가
+    )
+    # ^^^^ 수정 완료 ^^^^
 
     # 이미지 URL을 쉽게 가져오기 위한 속성
     @property
     def image_url(self):
         return url_for('static', filename=f'uploads/{self.image_filename}')
+    # vvvv (추가) 현재 유저가 이 포스트를 '좋아요' 했는지 확인하는 헬퍼 함수 vvvv
+    def is_liked_by(self, user):
+        # vvvv 이 2줄을 추가하세요 vvvv
+        if not user.is_authenticated:
+            return False
+        # ^^^^ 여기까지 ^^^^
+        return Like.query.filter(
+            Like.user_id == user.id,
+            Like.post_id == self.id
+        ).count() > 0
+    # ^^^^ 추가 완료 ^^^^
 
     def __repr__(self):
         return f'<Post {self.id}>'
 
+class Like(db.Model):
+    __tablename__ = 'like'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id', ondelete='CASCADE'), nullable=False)
+
+    # 한 유저가 한 포스트에 한 번만 '좋아요' 누를 수 있도록 Unique 제약 설정
+    __table_args__ = (db.UniqueConstraint('user_id', 'post_id', name='_user_post_uc'),)
+
+    def __repr__(self):
+        return f'<Like {self.user_id} -> {self.post_id}>'
+
+class Comment(db.Model):
+    __tablename__ = 'comment'
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.String(300), nullable=False)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+
+    # 관계 설정 (누가 썼는지, 어느 포스트에 달렸는지)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id', ondelete='CASCADE'), nullable=False)
+
+    def __repr__(self):
+        return f'<Comment {self.id} by {self.user_id}>'
 
 # Flask-Login을 위한 사용자 로더
 @login_manager.user_loader
@@ -289,6 +339,57 @@ def delete_post(post_id):
 
     # 5. 작업 완료 후, 본인의 프로필 페이지로 돌아갑니다.
     return redirect(url_for('profile', username=current_user.username))
+
+@app.route('/like/<int:post_id>', methods=['POST'])
+@login_required
+def like_toggle(post_id):
+    """좋아요 토글 (누르면 좋아요, 다시 누르면 취소)"""
+    post = Post.query.get_or_404(post_id)
+
+    # 이미 좋아요를 눌렀는지 확인
+    existing_like = Like.query.filter(
+        Like.user_id == current_user.id,
+        Like.post_id == post.id
+    ).first()
+
+    try:
+        if existing_like:
+            # 이미 눌렀다면 -> '좋아요' 취소 (DB에서 삭제)
+            db.session.delete(existing_like)
+            db.session.commit()
+        else:
+            # 처음 누른다면 -> '좋아요' (DB에 추가)
+            new_like = Like(author=current_user, post=post)
+            db.session.add(new_like)
+            db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        flash(f"오류가 발생했습니다: {e}")
+
+    # (수정) 'index' 대신 'request.referrer'를 사용해 직전 페이지로 리다이렉트
+    return redirect(request.referrer or url_for('index'))
+
+
+@app.route('/comment/<int:post_id>', methods=['POST'])
+@login_required
+def add_comment(post_id):
+    """댓글 달기"""
+    post = Post.query.get_or_404(post_id)
+    comment_text = request.form.get('comment_text') # 템플릿 form의 name과 일치
+
+    if not comment_text:
+        flash("댓글 내용이 없습니다.")
+        return redirect(request.referrer or url_for('index'))
+
+    try:
+        new_comment = Comment(text=comment_text, author=current_user, post=post)
+        db.session.add(new_comment)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        flash(f"댓글 작성 중 오류가 발생했습니다: {e}")
+
+    return redirect(request.referrer or url_for('index'))
 
 # --- 5. 앱 실행 ---
 if __name__ == '__main__':

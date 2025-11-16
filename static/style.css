@@ -363,3 +363,115 @@ a {
     width: 100%; /* 버튼 꽉 차게 */
     margin-top: 10px;
 }
+/* --- (index.html) 좋아요 및 댓글 --- */
+
+.post-content {
+    padding: 0 16px; /* 캡션, 좋아요 등에 좌우 패딩 */
+}
+
+/* 3-1. 좋아요 버튼 */
+.post-actions {
+    padding: 8px 0;
+}
+
+.like-form {
+    display: inline-block;
+}
+
+.like-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-size: 1.8em; /* 아이콘 크기 */
+    line-height: 1;
+}
+.like-button .liked {
+    /* (선택) 좋아요 눌렀을 때 애니메이션 */
+    /* animation: like-pop 0.3s ease; */
+}
+/* @keyframes like-pop { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } } */
+
+
+/* 3-2. 좋아요 개수 */
+.like-count {
+    font-weight: 600;
+    font-size: 0.9em;
+    padding: 0 0 8px;
+}
+
+/* 3-3. 캡션 (수정) */
+.post-caption {
+    padding: 0; /* post-content의 패딩을 사용하므로 0으로 리셋 */
+    margin-bottom: 8px;
+}
+.post-timestamp-caption {
+    font-size: 0.7em;
+    color: #8e8e8e;
+    text-transform: uppercase;
+    margin-top: 5px; /* 캡션과의 간격 */
+}
+
+/* 3-4. 댓글 목록 */
+.comment-list {
+    max-height: 150px; /* (선택) 댓글 많을 시 스크롤 */
+    overflow-y: auto;
+    margin-bottom: 8px;
+}
+.comment-item {
+    margin-bottom: 5px;
+}
+.comment-item p {
+    margin: 0;
+    font-size: 0.9em;
+    /* (선택) 긴 댓글 줄바꿈 */
+    word-wrap: break-word;
+}
+.comment-timestamp {
+    font-size: 0.7em;
+    color: #8e8e8e;
+}
+
+/* 3-5. 댓글 작성 폼 */
+.comment-form-container {
+    border-top: 1px solid #efefef; /* 상단 구분선 */
+    padding: 10px 16px;
+}
+.comment-form {
+    display: flex;
+    justify-content: space-between;
+}
+.comment-form input[type="text"] {
+    flex-grow: 1; /* 입력창이 남은 공간 꽉 채우기 */
+    border: none;
+    background: none;
+    padding: 5px 0;
+    outline: none; /* 클릭 시 테두리 제거 */
+    font-size: 0.9em;
+}
+.comment-form button {
+    background: none;
+    border: none;
+    color: #0095f6;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 5px;
+}
+.comment-form button:disabled {
+    color: #b2dffc;
+}
+
+/* --- 로그아웃 시 UI --- */
+.like-button-disabled {
+    font-size: 1.8em; /* .like-button과 동일한 크기 */
+    line-height: 1;
+    opacity: 0.4; /* 흐리게 */
+    padding: 0;
+    margin-left: -2px; /* 폼과 정렬 맞추기 */
+}
+
+.comment-login-prompt {
+    padding: 5px 0;
+    font-size: 0.9em;
+    color: #8e8e8e;
+}

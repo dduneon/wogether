@@ -15,17 +15,63 @@
             <img src="{{ post.image_url }}" alt="{{ post.caption or '운동 사진' }}">
         </div>
 
-        <div class="post-caption">
-            <p>
-                <strong><a href="{{ url_for('profile', username=post.author.username) }}">{{ post.author.nickname }}</a></strong>
-                {{ post.caption }}
-            </p>
+        <div class="post-content">
+
+	    <div class="post-actions">
+                {% if current_user.is_authenticated %}
+                <form action="{{ url_for('like_toggle', post_id=post.id) }}" method="POST" class="like-form">
+                    <button type="submit" class="like-button">
+                        {% if post.is_liked_by(current_user) %}
+                            <span class="liked">❤️</span> {% else %}
+                            <span>🤍</span> {% endif %}
+                    </button>
+                </form>
+                {% else %}
+                    <span class="like-button-disabled">🤍</span>
+                {% endif %}
+            </div>
+
+            <div class="like-count">
+                좋아요 {{ post.likes.count() }}개
+            </div>
+
+            <div class="post-caption">
+                <p>
+                    <strong><a href="{{ url_for('profile', username=post.author.username) }}">{{ post.author.nickname }}</a></strong>
+                    {{ post.caption }}
+                </p>
+                <div class="post-timestamp-caption">
+                    {{ post.timestamp | kst }}
+                </div>
+            </div>
+
+            <div class="comment-list">
+                {% for comment in post.comments.all() %}
+                <div class="comment-item">
+                    <p>
+                        <strong><a href="{{ url_for('profile', username=comment.author.username) }}">{{ comment.author.nickname }}</a></strong>
+                        {{ comment.text }}
+                    </p>
+                    <small class="comment-timestamp">{{ comment.timestamp | kst }}</small>
+                </div>
+                {% endfor %}
+            </div>
         </div>
 
-        <div class="post-timestamp">
-            {{ post.timestamp | kst }}
+	<div class="comment-form-container">
+            {% if current_user.is_authenticated %}
+            <form action="{{ url_for('add_comment', post_id=post.id) }}" method="POST" class="comment-form">
+                <input type="text" name="comment_text" placeholder="댓글 달기..." autocomplete="off">
+                <button type="submit">게시</button>
+            </form>
+            {% else %}
+                <div class="comment-login-prompt">
+                    댓글을 남기려면 <a href="{{ url_for('login') }}">로그인</a>하세요.
+                </div>
+            {% endif %}
         </div>
-    </article>
+
+        </article>
     {% else %}
     <p style="text-align: center;">아직 포스트가 없습니다. 첫 번째 오운완을 인증해보세요!</p>
     {% endfor %}
