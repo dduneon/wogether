@@ -247,4 +247,4 @@ if __name__ == '__main__':
         # 업로드 폴더가 없으면 생성
         if not os.path.exists(UPLOAD_FOLDER):
             os.makedirs(UPLOAD_FOLDER)
-    app.run(debug=True)
+    app.run(host='0.0.0.0', debug=True)
