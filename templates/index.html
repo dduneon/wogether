@@ -1,0 +1,33 @@
+{% extends "layout.html" %}
+{% block title %}오운스타그램 - 홈{% endblock %}
+
+{% block content %}
+<div class="feed-container">
+    {% for post in posts %}
+    <article class="post-card">
+        <div class="post-header">
+            <a href="{{ url_for('profile', username=post.author.username) }}">
+                <strong>{{ post.author.nickname }}</strong>
+            </a>
+        </div>
+
+        <div class="post-image">
+            <img src="{{ post.image_url }}" alt="{{ post.caption or '운동 사진' }}">
+        </div>
+
+        <div class="post-caption">
+            <p>
+                <strong><a href="{{ url_for('profile', username=post.author.username) }}">{{ post.author.nickname }}</a></strong>
+                {{ post.caption }}
+            </p>
+        </div>
+
+        <div class="post-timestamp">
+            {{ post.timestamp.strftime('%Y년 %m월 %d일') }}
+        </div>
+    </article>
+    {% else %}
+    <p style="text-align: center;">아직 포스트가 없습니다. 첫 번째 오운완을 인증해보세요!</p>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+{% block title %}로그인{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <h2 class="nav-logo">Owoonstagram</h2> <form method="POST">
+        <div class="form-group">
+            <input type="text" id="username" name="username" placeholder="아이디" required>
+        </div>
+        <div class="form-group">
+            <input type="password" id="password" name="password" placeholder="비밀번호" required>
+        </div>
+        <button type="submit" class="btn">로그인</button>
+    </form>
+</div>
+
+<div class="auth-switch">
+    <p>
+        계정이 없으신가요? <a href="{{ url_for('signup') }}">회원가입</a>
+    </p>
+</div>
+{% endblock %}
