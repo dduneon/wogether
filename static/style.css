@@ -238,3 +238,98 @@ a {
     background-color: #ffffff;
     text-align: center;
 }
+
+/* --- (create_post.html) 게시물 생성 --- */
+.creation-container {
+    max-width: 600px; /* 로그인폼보다 조금 넓게 */
+    margin: 40px auto;
+    padding: 30px;
+    border: 1px solid #dbdbdb;
+    border-radius: 8px;
+    background-color: #ffffff;
+    text-align: center;
+}
+
+.creation-container h2 {
+    font-size: 1.8em;
+    font-weight: 500;
+    margin: 0 0 20px;
+}
+
+/* 파일 업로드 버튼 커스텀 */
+.file-upload-wrapper {
+    margin-bottom: 20px;
+}
+
+/* 실제 input은 숨김 */
+.file-upload-wrapper input[type="file"] {
+    display: none;
+}
+
+/* label을 버튼처럼 스타일링 */
+.file-upload-label {
+    display: inline-block;
+    padding: 10px 20px;
+    font-size: 1em;
+    font-weight: 600;
+    color: #ffffff;
+    background-color: #0095f6;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin-bottom: 20px;
+}
+
+.file-upload-label:hover {
+    background-color: #007bcf;
+}
+
+/* 이미지 미리보기 영역 */
+.image-preview-box {
+    width: 100%;
+    min-height: 200px;
+    border: 2px dashed #dbdbdb;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+    overflow: hidden; /* 이미지가 넘치지 않게 */
+}
+
+.image-preview-box #image-preview {
+    max-width: 100%;
+    max-height: 400px;
+    display: none; /* 기본 숨김 */
+}
+
+.image-preview-box #preview-placeholder {
+    color: #8e8e8e;
+}
+
+
+/* 선택된 파일 이름 표시 (현재는 숨김) */
+.file-name-display {
+    margin-top: 10px;
+    font-size: 0.9em;
+    color: #8e8e8e;
+}
+
+/* 캡션 입력창 */
+.form-group textarea {
+    width: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+    border: 1px solid #dbdbdb;
+    border-radius: 4px;
+    background-color: #fafafa;
+    min-height: 100px; /* 캡션 영역 높이 */
+    font-family: inherit; /* body 폰트 상속 */
+    font-size: 1em;
+}
+
+/* 공유하기 버튼 (기존 .btn 사용) */
+.creation-container .btn {
+    width: 100%; /* 버튼 꽉 차게 */
+    margin-top: 10px;
+}

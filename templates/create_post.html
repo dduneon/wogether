@@ -1,17 +1,63 @@
 {% extends "layout.html" %}
-{% block title %}오운완 인증{% endblock %}
+{% block title %}새 게시물 만들기{% endblock %}
 
 {% block content %}
-<h2>오늘의 운동 인증하기</h2>
-<form method="POST" enctype="multipart/form-data">
-    <div>
-        <label for="photo">📸 사진 (필수)</label>
-        <input type="file" id="photo" name="photo" accept="image/*" required>
-    </div>
-    <div>
-        <label for="caption">✏️ 한마디 (선택)</label>
-        <textarea id="caption" name="caption" rows="3"></textarea>
-    </div>
-    <button type="submit">인증하기</button>
-</form>
+<div class="creation-container">
+    <h2>새 게시물 만들기</h2>
+
+    <form method="POST" enctype="multipart/form-data" id="upload-form">
+
+        <div class="file-upload-wrapper">
+            <label for="photo" class="file-upload-label">
+                📸 사진 선택
+            </label>
+            <input type="file" id="photo" name="photo" accept="image/*" required
+                   onchange="displayFileName(this)"> <div class="image-preview-box" id="image-preview-box">
+                <img id="image-preview" src="" alt="선택한 이미지 미리보기" style="display: none;">
+                <span id="preview-placeholder">선택한 사진이 여기에 표시됩니다</span>
+            </div>
+
+            <p class="file-name-display" id="file-name-display" style="display: none;">
+                </p>
+        </div>
+
+        <div class="form-group">
+            <label for="caption" style="display:none;">한마디</label> <textarea id="caption" name="caption" rows="4"
+                      placeholder="오늘의 운동 한마디를 적어주세요..."></textarea>
+        </div>
+
+        <button type="submit" class="btn">공유하기</button>
+    </form>
+</div>
+
+<script>
+function displayFileName(input) {
+    const fileNameDisplay = document.getElementById('file-name-display');
+    const previewBox = document.getElementById('image-preview-box');
+    const previewImage = document.getElementById('image-preview');
+    const previewPlaceholder = document.getElementById('preview-placeholder');
+
+    if (input.files && input.files.length > 0) {
+        // 1. 파일 이름 표시 (필요시 주석 해제)
+        // fileNameDisplay.textContent = input.files[0].name;
+        // fileNameDisplay.style.display = 'block';
+
+        // 2. 이미지 미리보기
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewImage.src = e.target.result;
+            previewImage.style.display = 'block';
+            previewPlaceholder.style.display = 'none'; // 플레이스홀더 숨김
+        };
+        reader.readAsDataURL(input.files[0]);
+        previewBox.style.display = 'flex'; // 미리보기 박스 표시
+    } else {
+        // fileNameDisplay.textContent = '';
+        // fileNameDisplay.style.display = 'none';
+        previewImage.style.display = 'none';
+        previewPlaceholder.style.display = 'block';
+    }
+}
+</script>
+
 {% endblock %}
