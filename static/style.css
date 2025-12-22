@@ -475,3 +475,207 @@ a {
     font-size: 0.9em;
     color: #8e8e8e;
 }
+/* --- 캐러셀 (Carousel) 스타일 --- */
+.carousel-container {
+    position: relative;
+    width: 100%;
+    overflow: hidden; /* 넘치는 이미지 숨김 */
+}
+
+.carousel-slide {
+    display: none; /* 기본적으로 숨김 */
+    width: 100%;
+}
+
+.carousel-slide.active {
+    display: block; /* active 클래스가 있으면 보임 */
+}
+
+.carousel-slide img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+/* 화살표 버튼 */
+.carousel-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: rgba(0, 0, 0, 0.3); /* 반투명 검정 배경 */
+    color: white;
+    border: none;
+    padding: 10px;
+    cursor: pointer;
+    font-size: 18px;
+    border-radius: 50%;
+    user-select: none;
+    width: 30px;
+    height: 30px;
+    line-height: 10px;
+    display: flex; /* 내용 중앙 정렬 */
+    align-items: center;
+    justify-content: center;
+}
+.carousel-btn:hover {
+    background-color: rgba(0, 0, 0, 0.6);
+}
+
+.carousel-btn.prev { left: 10px; }
+.carousel-btn.next { right: 10px; }
+
+/* 하단 점 (Dots) */
+.carousel-dots {
+    position: absolute;
+    bottom: 10px;
+    width: 100%;
+    text-align: center;
+}
+
+.dot {
+    cursor: pointer;
+    height: 6px;
+    width: 6px;
+    margin: 0 2px;
+    background-color: rgba(255, 255, 255, 0.5);
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.dot.active {
+    background-color: white;
+}
+
+/* 프로필 페이지 다중 이미지 아이콘 */
+.multi-image-icon {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    color: white;
+    background-color: rgba(0,0,0,0.5);
+    padding: 3px 5px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    /* 삭제 버튼과 겹치지 않게 위치 조정 필요시 right 값 조절 */
+    /* 현재 삭제버튼도 right:8px 이므로 겹칠 수 있음.
+       삭제 버튼을 right: 8px, 이걸 right: 40px 정도로 배치 추천 */
+    right: 40px;
+}
+
+/* --- (create_post.html) 다중 이미지 미리보기 스타일 --- */
+
+/* 파일 개수 텍스트 */
+.file-count-text {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    font-size: 0.9em;
+    color: #8e8e8e;
+}
+
+/* 미리보기 박스 (컨테이너) */
+.image-preview-box {
+    width: 100%;
+    min-height: 150px; /* 높이 약간 줄임 */
+    border: 2px dashed #dbdbdb;
+    border-radius: 8px;
+    padding: 10px;
+    box-sizing: border-box;
+    display: flex; /* placeholder 중앙 정렬용 */
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+    background-color: #fafafa;
+}
+
+/* 실제 이미지들이 들어갈 그리드 */
+.preview-grid {
+    display: flex;
+    flex-wrap: wrap; /* 줄바꿈 허용 */
+    gap: 10px; /* 사진 사이 간격 */
+    width: 100%;
+    justify-content: center;
+}
+
+/* 개별 썸네일 이미지 */
+.preview-thumbnail {
+    width: 100px;  /* 썸네일 크기 고정 */
+    height: 100px;
+    object-fit: cover; /* 비율 유지하며 꽉 채우기 */
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* --- (create_post.html) 동적 추가/삭제 스타일 --- */
+
+/* 개별 사진 카드 (이미지 + 삭제버튼 감싸는 통) */
+.preview-card {
+    position: relative; /* 삭제 버튼 위치 기준점 */
+    width: 100px;
+    height: 100px;
+}
+
+/* 썸네일 이미지 */
+.preview-thumbnail {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+/* 삭제 버튼 (X) */
+.preview-delete-btn {
+    position: absolute;
+    top: -8px;    /* 이미지 오른쪽 위 모서리에 걸치게 */
+    right: -8px;
+    width: 24px;
+    height: 24px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 22px; /* 텍스트 수직 정렬 */
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    z-index: 10;
+}
+
+.preview-delete-btn:hover {
+    background-color: red;
+}
+
+/* 파일 추가 버튼 스타일 약간 수정 (더 잘 보이게) */
+.file-upload-label {
+    display: inline-block;
+    width: 100%; /* 버튼을 꽉 차게 */
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.image-preview-box {
+    /* 기존 스타일 유지하되, 내용물이 없으면 숨길 것이므로 min-height 제거 또는 조정 */
+    min-height: auto;
+    background-color: #fff; /* 배경 흰색으로 */
+    border: none; /* 테두리 제거 (사진 있을 때만 보여줄 것이므로) */
+}
+
+/* 로딩 스피너 */
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #0095f6;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

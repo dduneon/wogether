@@ -64,13 +64,23 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return f'<User {self.username}>'
 
+# [신규 추가] 사진 테이블
+class PostImage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(120), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id', ondelete='CASCADE'), nullable=False)
+
+    @property
+    def image_url(self):
+        return url_for('static', filename=f'uploads/{self.filename}')
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    image_filename = db.Column(db.String(120), nullable=False)
     caption = db.Column(db.String(200), nullable=True)
     timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+    images = db.relationship('PostImage', backref='post', lazy=True, cascade='all, delete-orphan')
     # vvvv 수정: 새 관계 정의 vvvv
     likes = db.relationship('Like', backref='post', lazy='dynamic', cascade='all, delete-orphan')
     # (수정) 댓글이 항상 오래된순(asc)으로 정렬되도록 lambda로 기본값 설정
@@ -82,12 +92,14 @@ class Post(db.Model):
         order_by=lambda: Comment.timestamp.asc() # 👈 이 라인 추가
     )
     # ^^^^ 수정 완료 ^^^^
-
-    # 이미지 URL을 쉽게 가져오기 위한 속성
+    # [수정] 대표 이미지(첫 번째 사진) URL을 가져오는 헬퍼 속성
     @property
-    def image_url(self):
-        return url_for('static', filename=f'uploads/{self.image_filename}')
-    # vvvv (추가) 현재 유저가 이 포스트를 '좋아요' 했는지 확인하는 헬퍼 함수 vvvv
+    def representative_image_url(self):
+        if self.images:
+            return self.images[0].image_url
+        return None # 사진이 없는 경우 (예외 처리)
+
+     # vvvv (추가) 현재 유저가 이 포스트를 '좋아요' 했는지 확인하는 헬퍼 함수 vvvv
     def is_liked_by(self, user):
         # vvvv 이 2줄을 추가하세요 vvvv
         if not user.is_authenticated:
@@ -194,10 +206,30 @@ def logout():
 
 @app.route('/')
 def index():
-    # 모든 사람의 포스트를 최신순으로 보여줌
-    posts = Post.query.order_by(Post.timestamp.desc()).all()
+    # 처음 접속 시 페이지 1의 게시물 5개만 가져옴
+    page = 1
+    per_page = 3
+    posts = Post.query.order_by(Post.timestamp.desc()).paginate(page=page, per_page=per_page, error_out=False).items
     return render_template('index.html', posts=posts)
 
+@app.route('/load-more')
+def load_more():
+    # 자바스크립트에서 보낸 페이지 번호를 받음
+    page = request.args.get('page', 1, type=int)
+    per_page = 3
+
+    pagination = Post.query.order_by(Post.timestamp.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    posts = pagination.items
+
+    if not posts:
+        return '', 204 # 더 이상 게시물이 없으면 '내용 없음' 상태코드 반환
+
+    # _post_card.html 조각들을 합쳐서 문자열로 반환
+    html = ""
+    for post in posts:
+        html += render_template('_post_card.html', post=post)
+
+    return html
 
 # 파일 확장자 확인
 def allowed_file(filename):
@@ -209,32 +241,35 @@ def allowed_file(filename):
 @login_required
 def create_post():
     if request.method == 'POST':
-        if 'photo' not in request.files:
-            flash('파일이 없습니다.')
+        # 'photo'가 getlist로 여러 파일을 받음
+        files = request.files.getlist('photo')
+        caption = request.form.get('caption') # .get() 사용 권장
+
+        # 파일이 하나도 없는 경우 체크
+        if not files or files[0].filename == '':
+            flash('사진을 최소 한 장 이상 선택해주세요.')
             return redirect(request.url)
 
-        file = request.files['photo']
-        caption = request.form['caption']
+        # 1. Post 객체 먼저 생성 (DB에 저장해야 ID가 생김)
+        new_post = Post(caption=caption, author=current_user)
+        db.session.add(new_post)
+        db.session.flush() # commit 전이지만 id를 생성하기 위해 flush() 사용
 
-        if file.filename == '':
-            flash('선택된 파일이 없습니다.')
-            return redirect(request.url)
+        # 2. 파일들을 순회하며 저장 및 DB 연결
+        for file in files:
+            if file and allowed_file(file.filename):
+                filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{secure_filename(file.filename)}"
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
 
-        if file and allowed_file(file.filename):
-            # 파일 이름을 안전하게 만들고, 중복을 피하기 위해 타임스탬프 추가
-            filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{secure_filename(file.filename)}"
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
+                # PostImage 객체 생성
+                new_image = PostImage(filename=filename, post=new_post)
+                db.session.add(new_image)
 
-            new_post = Post(image_filename=filename, caption=caption, author=current_user)
-            db.session.add(new_post)
-            db.session.commit()
+        db.session.commit() # 최종 저장
 
-            flash('오운완 인증! 🥳')
-            return redirect(url_for('profile', username=current_user.username))
-        else:
-            flash('허용되지 않는 파일 형식입니다. (png, jpg, jpeg, gif)')
-            return redirect(request.url)
+        flash('오운완 인증! 🥳')
+        return redirect(url_for('profile', username=current_user.username))
 
     return render_template('create_post.html')
 
@@ -312,32 +347,28 @@ def profile(username):
 @app.route('/post/<int:post_id>/delete', methods=['POST'])
 @login_required
 def delete_post(post_id):
-    # 1. 삭제할 게시물을 DB에서 찾습니다. 없으면 404 오류.
     post_to_delete = Post.query.get_or_404(post_id)
 
-    # 2. (핵심) 현재 로그인한 유저가 이 포스트의 작성자인지 확인합니다.
     if post_to_delete.author != current_user:
-        # 작성자가 아니면 403 (Forbidden) 오류를 발생시킵니다.
         abort(403)
 
     try:
-        # 3. (중요) static/uploads 폴더에서 실제 이미지 파일을 삭제합니다.
-        image_path = os.path.join(app.config['UPLOAD_FOLDER'], post_to_delete.image_filename)
-        if os.path.exists(image_path):
-            os.remove(image_path)
+        # [수정] 연결된 모든 PostImage 파일을 찾아서 실제 파일 삭제
+        for image in post_to_delete.images:
+            image_path = os.path.join(app.config['UPLOAD_FOLDER'], image.filename)
+            if os.path.exists(image_path):
+                os.remove(image_path)
 
-        # 4. 데이터베이스에서 게시물 기록을 삭제합니다.
+        # DB 삭제 (cascade 설정 덕분에 PostImage 테이블 데이터는 자동 삭제됨)
         db.session.delete(post_to_delete)
         db.session.commit()
 
         flash('게시물이 성공적으로 삭제되었습니다.')
 
     except Exception as e:
-        # 파일 삭제나 DB 삭제 중 오류가 나면 롤백합니다.
         db.session.rollback()
         flash(f'삭제 중 오류가 발생했습니다: {e}')
 
-    # 5. 작업 완료 후, 본인의 프로필 페이지로 돌아갑니다.
     return redirect(url_for('profile', username=current_user.username))
 
 @app.route('/like/<int:post_id>', methods=['POST'])

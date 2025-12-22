@@ -2,78 +2,83 @@
 {% block title %}오운스타그램 - 홈{% endblock %}
 
 {% block content %}
-<div class="feed-container">
+<div class="feed-container" id="post-container">
     {% for post in posts %}
-    <article class="post-card">
-        <div class="post-header">
-            <a href="{{ url_for('profile', username=post.author.username) }}">
-                <strong>{{ post.author.nickname }}</strong>
-            </a>
-        </div>
-
-        <div class="post-image">
-            <img src="{{ post.image_url }}" alt="{{ post.caption or '운동 사진' }}">
-        </div>
-
-        <div class="post-content">
-
-	    <div class="post-actions">
-                {% if current_user.is_authenticated %}
-                <form action="{{ url_for('like_toggle', post_id=post.id) }}" method="POST" class="like-form">
-                    <button type="submit" class="like-button">
-                        {% if post.is_liked_by(current_user) %}
-                            <span class="liked">❤️</span> {% else %}
-                            <span>🤍</span> {% endif %}
-                    </button>
-                </form>
-                {% else %}
-                    <span class="like-button-disabled">🤍</span>
-                {% endif %}
-            </div>
-
-            <div class="like-count">
-                좋아요 {{ post.likes.count() }}개
-            </div>
-
-            <div class="post-caption">
-                <p>
-                    <strong><a href="{{ url_for('profile', username=post.author.username) }}">{{ post.author.nickname }}</a></strong>
-                    {{ post.caption }}
-                </p>
-                <div class="post-timestamp-caption">
-                    {{ post.timestamp | kst }}
-                </div>
-            </div>
-
-            <div class="comment-list">
-                {% for comment in post.comments.all() %}
-                <div class="comment-item">
-                    <p>
-                        <strong><a href="{{ url_for('profile', username=comment.author.username) }}">{{ comment.author.nickname }}</a></strong>
-                        {{ comment.text }}
-                    </p>
-                    <small class="comment-timestamp">{{ comment.timestamp | kst }}</small>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-
-	<div class="comment-form-container">
-            {% if current_user.is_authenticated %}
-            <form action="{{ url_for('add_comment', post_id=post.id) }}" method="POST" class="comment-form">
-                <input type="text" name="comment_text" placeholder="댓글 달기..." autocomplete="off">
-                <button type="submit">게시</button>
-            </form>
-            {% else %}
-                <div class="comment-login-prompt">
-                    댓글을 남기려면 <a href="{{ url_for('login') }}">로그인</a>하세요.
-                </div>
-            {% endif %}
-        </div>
-
-        </article>
+        {% include '_post_card.html' %}
     {% else %}
-    <p style="text-align: center;">아직 포스트가 없습니다. 첫 번째 오운완을 인증해보세요!</p>
+        <p style="text-align: center;">아직 포스트가 없습니다.</p>
     {% endfor %}
 </div>
+
+<div id="loading-sentinel" style="text-align: center; padding: 20px; visibility: hidden;">
+    <div class="spinner"></div> <p>불러오는 중...</p>
+</div>
+
+<script>
+    let page = 1;
+    let loading = false;
+    let hasMore = true;
+
+    // Intersection Observer 설정 (화면 하단 감지)
+    const observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && !loading && hasMore) {
+            loadMorePosts();
+        }
+    }, { threshold: 1.0 });
+
+    // 감시 시작
+    observer.observe(document.getElementById('loading-sentinel'));
+
+    async function loadMorePosts() {
+        loading = true;
+        page++;
+        
+        document.getElementById('loading-sentinel').style.visibility = 'visible';
+
+        try {
+            const response = await fetch(`/load-more?page=${page}`);
+            
+            if (response.status === 204) {
+                hasMore = false;
+                document.getElementById('loading-sentinel').innerHTML = '<p style="color: #8e8e8e;">마지막 게시물입니다.</p>';
+                return;
+            }
+
+            const html = await response.text();
+            if (html.trim() === "") {
+                hasMore = false;
+                return;
+            }
+
+            // 게시물 컨테이너에 추가
+            document.getElementById('post-container').insertAdjacentHTML('beforeend', html);
+        } catch (error) {
+            console.error("Error loading posts:", error);
+        } finally {
+            loading = false;
+            document.getElementById('loading-sentinel').style.visibility = 'hidden';
+        }
+    }
+
+    // --- 기존 캐러셀 함수 (동적으로 추가된 게시물에도 작동하도록 전역 유지) ---
+    function moveSlide(postId, direction) {
+        const container = document.getElementById('carousel-' + postId);
+        const slides = container.getElementsByClassName('carousel-slide');
+        const dots = container.getElementsByClassName('dot');
+        let currentIndex = 0;
+        for (let i = 0; i < slides.length; i++) {
+            if (slides[i].classList.contains('active')) {
+                currentIndex = i;
+                break;
+            }
+        }
+        let nextIndex = (currentIndex + direction + slides.length) % slides.length;
+        slides[currentIndex].classList.remove('active');
+        slides[nextIndex].classList.add('active');
+        if (dots.length > 0) {
+            dots[currentIndex].classList.remove('active');
+            dots[nextIndex].classList.add('active');
+        }
+    }
+</script>
 {% endblock %}
