@@ -260,8 +260,20 @@ def create_post():
             if file and allowed_file(file.filename):
                 filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{secure_filename(file.filename)}"
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(filepath)
 
+                # --- 이미지 최적화 로직 추가 ---
+                img = Image.open(file)
+                # 1. 이미지 크기 조정 (최대 가로 1080px 수준으로)
+                img.thumbnail((1080, 1080))
+                # 2. RGB 모드로 변환 (PNG나 다른 포맷 대응)
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                # 3. WebP 포맷으로 압축 저장 (JPEG보다 효율적)
+                filename = filename.rsplit('.', 1)[0] + '.webp'
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                img.save(filepath, 'WEBP', quality=80) # 품질 80%로 압축
+                # ----------------------------
+        
                 # PostImage 객체 생성
                 new_image = PostImage(filename=filename, post=new_post)
                 db.session.add(new_image)
