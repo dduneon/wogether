@@ -383,6 +383,51 @@ def delete_post(post_id):
 
     return redirect(url_for('profile', username=current_user.username))
 
+# app.py의 delete_post 함수 아래에 추가하세요.
+
+@app.route('/post/<int:post_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_post(post_id):
+    post = Post.query.get_or_404(post_id)
+
+    # 1. 작성자 본인인지 확인
+    if post.author != current_user:
+        abort(403)
+
+    if request.method == 'POST':
+        # 2. 캡션 수정
+        post.caption = request.form.get('caption')
+
+        # 3. 기존 사진 삭제 처리 (체크박스로 선택된 사진들)
+        delete_image_ids = request.form.getlist('delete_images')
+        for img_id in delete_image_ids:
+            img = PostImage.query.get(int(img_id))
+            if img and img.post_id == post.id:
+                # 실제 파일 삭제
+                img_path = os.path.join(app.config['UPLOAD_FOLDER'], img.filename)
+                if os.path.exists(img_path):
+                    os.remove(img_path)
+                # DB 데이터 삭제
+                db.session.delete(img)
+
+        # 4. 새로운 사진 추가 처리 (업로드 로직과 동일)
+        new_files = request.files.getlist('photo')
+        for file in new_files:
+            if file and allowed_file(file.filename):
+                # 이미지 최적화(Pillow)를 적용했다면 그 로직을 여기에도 넣는 것이 좋습니다.
+                filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{secure_filename(file.filename)}"
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+
+                new_image = PostImage(filename=filename, post=post)
+                db.session.add(new_image)
+
+        db.session.commit()
+        flash('게시물이 수정되었습니다.')
+        return redirect(url_for('profile', username=current_user.username))
+
+    return render_template('edit_post.html', post=post)
+
 @app.route('/like/<int:post_id>', methods=['POST'])
 @login_required
 def like_toggle(post_id):

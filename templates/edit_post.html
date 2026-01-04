@@ -1,0 +1,99 @@
+{% extends "layout.html" %}
+{% block title %}게시물 수정{% endblock %}
+
+{% block content %}
+<div class="creation-container">
+    <h2>게시물 수정</h2>
+
+    <form method="POST" enctype="multipart/form-data" onsubmit="prepareUpload()">
+        
+        <div class="edit-existing-images">
+            <p style="font-size: 0.9em; color: #8e8e8e; margin-bottom: 10px;">기존 사진 (삭제하려면 선택하세요)</p>
+            <div class="preview-grid">
+                {% for image in post.images %}
+                <div class="preview-card existing">
+                    <img src="{{ image.image_url }}" class="preview-thumbnail">
+                    <label class="delete-checkbox-label">
+                        <input type="checkbox" name="delete_images" value="{{ image.id }}"> 삭제
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid #dbdbdb; margin: 25px 0;">
+
+        <div class="file-upload-wrapper">
+            <label for="photo" class="file-upload-label">➕ 새 사진 추가하기</label>
+            <input type="file" id="photo" name="photo" accept="image/*" multiple 
+                   style="display: none;" onchange="handleFileSelect(this)">
+            
+            <div id="file-count-display" class="file-count-text">추가로 선택된 사진이 없습니다.</div>
+
+            <div class="image-preview-box" id="image-preview-box" style="display: none;">
+                <div id="preview-grid" class="preview-grid"></div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <textarea id="caption" name="caption" rows="4" 
+                      placeholder="설명을 입력하세요...">{{ post.caption }}</textarea>
+        </div>
+
+        <button type="submit" class="btn">수정 완료</button>
+        <a href="{{ url_for('profile', username=current_user.username) }}" 
+           style="display: block; margin-top: 15px; color: #8e8e8e;">취소</a>
+    </form>
+</div>
+
+<script>
+let dataTransfer = new DataTransfer();
+
+function handleFileSelect(input) {
+    const files = input.files;
+    for (let i = 0; i < files.length; i++) { dataTransfer.items.add(files[i]); }
+    updateUI();
+    input.value = '';
+}
+
+function removeFile(index) {
+    const newDataTransfer = new DataTransfer();
+    for (let i = 0; i < dataTransfer.files.length; i++) {
+        if (i !== index) newDataTransfer.items.add(dataTransfer.files[i]);
+    }
+    dataTransfer = newDataTransfer;
+    updateUI();
+}
+
+function updateUI() {
+    const previewBox = document.getElementById('image-preview-box');
+    const previewGrid = document.getElementById('preview-grid');
+    const countDisplay = document.getElementById('file-count-display');
+    previewGrid.innerHTML = '';
+    const files = dataTransfer.files;
+
+    if (files.length > 0) {
+        previewBox.style.display = 'block';
+        countDisplay.textContent = `추가 사진: ${files.length}장`;
+        Array.from(files).forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const card = document.createElement('div');
+                card.classList.add('preview-card');
+                card.innerHTML = `<img src="${e.target.result}" class="preview-thumbnail">
+                                  <button type="button" class="preview-delete-btn" onclick="removeFile(${index})">&times;</button>`;
+                previewGrid.appendChild(card);
+            };
+            reader.readAsDataURL(file);
+        });
+    } else {
+        previewBox.style.display = 'none';
+        countDisplay.textContent = '추가로 선택된 사진이 없습니다.';
+    }
+}
+
+function prepareUpload() {
+    document.getElementById('photo').files = dataTransfer.files;
+}
+</script>
+{% endblock %}
