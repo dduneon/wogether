@@ -7,6 +7,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, distinct
 import calendar  # 캘린더 출력을 위해
+from PIL import Image
 
 # --- 1. 앱 설정 ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -259,7 +260,6 @@ def create_post():
         for file in files:
             if file and allowed_file(file.filename):
                 filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{secure_filename(file.filename)}"
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
                 # --- 이미지 최적화 로직 추가 ---
                 img = Image.open(file)
