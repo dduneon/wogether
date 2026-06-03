@@ -64,9 +64,15 @@ def _ensure_bucket():
 
 db = SQLAlchemy(app)
 
-with app.app_context():
-    db.create_all()
-    _ensure_bucket()
+_initialized = False
+
+@app.before_request
+def _init_once():
+    global _initialized
+    if not _initialized:
+        db.create_all()
+        _ensure_bucket()
+        _initialized = True
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = "로그인이 필요합니다."
