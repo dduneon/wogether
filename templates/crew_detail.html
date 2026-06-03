@@ -1,0 +1,250 @@
+{% extends "layout.html" %}
+{% block title %}{{ crew.name }} — Wogether{% endblock %}
+{% block content %}
+<div class="page-wrap">
+
+  <!-- Hero -->
+  <div class="fade-up mb-24">
+    <div class="page-eyebrow">Crew</div>
+    <div class="crew-hero-row">
+      <div>
+        <h1 class="crew-hero-name gradient-text">{{ crew.name }}</h1>
+        {% if crew.description %}<p class="crew-hero-desc">{{ crew.description }}</p>{% endif %}
+      </div>
+      <div class="crew-hero-side">
+        <button class="invite-icon-btn" onclick="shareInvite(this)" title="초대링크 공유">🔗</button>
+        {% if crew.owner_id != current_user.id %}
+        <form action="{{ url_for('leave_crew', crew_id=crew.id) }}" method="post">
+          <button type="submit" class="btn btn-ghost btn-sm">나가기</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    <div class="crew-meta-row">
+      <span class="crew-meta-item">👥 {{ crew.member_count }}명</span>
+      <span class="crew-meta-sep">·</span>
+      <span class="crew-meta-item">📅 {{ crew.created_at | kst_date }}</span>
+      {% if crew.description %}
+      <span class="crew-meta-sep">·</span>
+      <span class="crew-meta-item crew-meta-desc">{{ crew.description }}</span>
+      {% endif %}
+    </div>
+    <div class="crew-actions">
+      <a href="{{ url_for('create_goal', crew_id=crew.id) }}" class="btn btn-secondary btn-action">🎯 목표 추가</a>
+      <a href="{{ url_for('create_log', crew_id=crew.id) }}" class="btn btn-primary btn-action">📸 운동 인증</a>
+    </div>
+  </div>
+
+  <!-- Pending approvals -->
+  {% if pending_for_me %}
+  <div class="pending-banner fade-up-1">
+    <div class="pending-banner-title">🤝 동의 대기 중인 목표 {{ pending_for_me|length }}개</div>
+    {% for goal in pending_for_me %}
+    <div class="pending-row">
+      <span>
+        <span class="text-muted">{{ goal.user.nickname }}</span>
+        &nbsp;—&nbsp;
+        <strong>{{ goal.title }}</strong>
+        <span class="tag tag-yellow" style="margin-left:6px">주 {{ goal.frequency_per_week }}회</span>
+      </span>
+      <form action="{{ url_for('approve_goal', goal_id=goal.id) }}" method="post">
+        <button type="submit" class="btn btn-cyan btn-sm">동의 ✓</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- 탭 -->
+  <div class="crew-tabs fade-up-2">
+    <button class="crew-tab active" onclick="switchTab('feed')">📸 인증 피드</button>
+    <button class="crew-tab" onclick="switchTab('status')">📊 현황</button>
+  </div>
+
+  <!-- 현황 탭 -->
+  <div id="tab-status" class="tab-panel fade-up-2" style="display:none">
+    <div class="member-grid">
+      {% for m in members_data %}
+      {% set pct = m.avg_percent %}
+      <div class="member-card">
+        <div class="member-top">
+          <div>
+            <div class="member-nickname">
+              {{ m.user.nickname }}
+              {% if m.role == 'owner' %}<span class="tag tag-purple" style="margin-left:6px">크루장</span>{% endif %}
+            </div>
+          </div>
+          <div class="member-pct {% if pct >= 100 %}hot{% elif pct >= 50 %}mid{% elif pct > 0 %}cold{% else %}zero{% endif %}">
+            {{ pct }}%
+          </div>
+        </div>
+
+        <div class="progress-track" style="margin-bottom:14px">
+          <div class="progress-fill {% if pct >= 100 %}green{% elif pct >= 50 %}yellow{% endif %}"
+               style="width:{{ pct }}%"></div>
+        </div>
+
+        {% if m.goals %}
+        <div style="margin-bottom:12px">
+          {% for g in m.goals %}
+          {% set done, target, percent = g.progress_this_week() %}
+          <div class="goal-item">
+            <span class="goal-item-title">{{ g.title }}</span>
+            <span class="goal-item-prog">{{ done }}/{{ target }}</span>
+            {% if g.status == 'pending' %}<span class="tag tag-yellow">대기</span>{% endif %}
+            {% if g.user_id == current_user.id %}
+            <form action="{{ url_for('delete_goal', goal_id=g.id) }}" method="post" style="display:inline">
+              <button type="submit" class="btn btn-ghost btn-sm" style="padding:2px 8px">✕</button>
+            </form>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p style="font-size:.82rem;color:var(--text-dim);margin-bottom:12px">목표 없음</p>
+        {% endif %}
+
+        {% if m.user.id != current_user.id %}
+        <form action="{{ url_for('nudge', crew_id=crew.id, target_user_id=m.user.id) }}" method="post">
+          <button type="submit" class="btn btn-secondary btn-full btn-sm nudge-btn">
+            👉 운동하라고 콕!
+          </button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 인증 피드 탭 -->
+  <div id="tab-feed" class="tab-panel">
+    {% if feed_items %}
+    <div class="sns-feed">
+      {% for item in feed_items %}
+
+      {% if item.type == 'log' %}
+      {% set log = item.obj %}
+      <div class="sns-post">
+        <div class="sns-post-header">
+          <div class="sns-avatar">{{ log.author.nickname[0] }}</div>
+          <div>
+            <div class="sns-author-name">{{ log.author.nickname }}</div>
+            <div class="sns-post-time">{{ log.timestamp | kst }}</div>
+          </div>
+          {% if log.workout_type %}
+          <div class="sns-workout-badge">
+            <span class="tag tag-cyan">{{ log.workout_type }}</span>
+          </div>
+          {% endif %}
+        </div>
+
+        {% if log.images %}
+          {% if log.images|length == 1 %}
+          <div class="sns-post-images">
+            <img src="{{ log.images[0].image_url }}" class="sns-post-img" alt="운동 인증">
+          </div>
+          {% elif log.images|length == 2 %}
+          <div class="sns-multi-img cols-2">
+            {% for img in log.images %}<img src="{{ img.image_url }}" alt="">{% endfor %}
+          </div>
+          {% else %}
+          <div class="sns-multi-img cols-3">
+            {% for img in log.images[:3] %}<img src="{{ img.image_url }}" alt="">{% endfor %}
+          </div>
+          {% endif %}
+        {% else %}
+        <div class="sns-post-img-placeholder">🏋️</div>
+        {% endif %}
+
+        {% if log.caption %}
+        <div class="sns-post-body">
+          <p class="sns-caption">
+            <span class="sns-author-handle">{{ log.author.nickname }}</span>{{ log.caption }}
+          </p>
+        </div>
+        {% endif %}
+
+        <div class="sns-post-actions">
+          <button class="sns-action-btn {% if log.is_liked_by(current_user.id) %}liked{% endif %}"
+                  data-log-id="{{ log.id }}"
+                  onclick="toggleLike(this)">
+            💪 <span class="like-count">{{ log.like_count }}</span>
+          </button>
+          {% if log.user_id == current_user.id %}
+          <form action="{{ url_for('delete_log', log_id=log.id) }}" method="post" style="margin-left:auto">
+            <button type="submit" class="sns-delete-btn">🗑 삭제</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+
+      {% else %}
+      {% set act = item.obj %}
+      {% set m = act.meta_dict %}
+      <div class="activity-card">
+        <div class="activity-avatar">{{ act.user.nickname[0] }}</div>
+        <div class="activity-body">
+          {% if act.event_type == 'join' %}
+          <span class="activity-icon">👋</span>
+          <span><strong>{{ act.user.nickname }}</strong>님이 크루에 합류했어요!</span>
+          {% elif act.event_type == 'goal_added' %}
+          <span class="activity-icon">🎯</span>
+          <span><strong>{{ act.user.nickname }}</strong>님이 목표를 추가했어요 — <em>{{ m.goal_title }}</em> (주 {{ m.frequency }}회)</span>
+          {% elif act.event_type == 'goal_approved' %}
+          <span class="activity-icon">✅</span>
+          <span><strong>{{ act.user.nickname }}</strong>님의 목표 <em>{{ m.goal_title }}</em>이(가) 팀원 동의를 받았어요!</span>
+          {% elif act.event_type == 'goal_completed' %}
+          <span class="activity-icon">🏆</span>
+          <span><strong>{{ act.user.nickname }}</strong>님이 이번 주 목표 <em>{{ m.goal_title }}</em>을(를) 달성했어요! ({{ m.done }}/{{ m.target }}회)</span>
+          {% endif %}
+          <div class="activity-time">{{ act.created_at | kst_short }}</div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-state-icon">📸</div>
+      <p>아직 인증 기록이 없어요. 첫 운동을 인증해보세요!</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+const INVITE_URL = `${location.origin}/join/{{ crew.invite_code }}`;
+
+function shareInvite(btn) {
+  const orig = btn.innerHTML;
+  const msg = `[Wogether] {{ crew.name }} 크루에 초대합니다!\n함께 운동 목표를 달성해요 💪\n${INVITE_URL}`;
+  if (navigator.share) {
+    navigator.share({ title: 'Wogether 크루 초대', text: msg, url: INVITE_URL }).catch(() => {});
+    return;
+  }
+  navigator.clipboard.writeText(INVITE_URL).then(() => {
+    btn.innerHTML = '<span style="color:var(--green)">✓ 링크 복사됨!</span>';
+    setTimeout(() => btn.innerHTML = orig, 2500);
+  }).catch(() => { prompt('초대링크를 복사하세요', INVITE_URL); });
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.crew-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+  document.getElementById('tab-' + tab).style.display = '';
+  event.currentTarget.classList.add('active');
+}
+
+async function toggleLike(btn) {
+  const logId = btn.dataset.logId;
+  try {
+    const r = await fetch(`/log/${logId}/like`, { method: 'POST' });
+    const d = await r.json();
+    btn.classList.toggle('liked', d.liked);
+    btn.querySelector('.like-count').textContent = d.count;
+  } catch(e) {}
+}
+</script>
+{% endblock %}

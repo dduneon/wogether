@@ -1,84 +1,108 @@
 {% extends "layout.html" %}
-{% block title %}오운스타그램 - 홈{% endblock %}
-
+{% block title %}홈 — Wogether{% endblock %}
 {% block content %}
-<div class="feed-container" id="post-container">
-    {% for post in posts %}
-        {% include '_post_card.html' %}
-    {% else %}
-        <p style="text-align: center;">아직 포스트가 없습니다.</p>
+<div class="page-wrap">
+
+  <!-- 헤더 -->
+  <div class="flex-between mb-16 fade-up">
+    <div>
+      <div class="page-eyebrow">My Space</div>
+      <div class="heading">안녕하세요, <span class="text-purple">{{ current_user.nickname }}</span>님 👋</div>
+    </div>
+    {% if unread %}
+    <a href="{{ url_for('notifications') }}" class="tag tag-red" style="animation:pulse 2s infinite">
+      🔔 {{ unread }}
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- 주간 요약 카드 -->
+  <div class="week-summary-card fade-up-1">
+    <div class="week-summary-left">
+      <div class="week-summary-label">이번 주 내 인증</div>
+      <div class="week-summary-count">{{ total_logs_this_week }}<span class="week-summary-unit">회</span></div>
+    </div>
+    <div class="week-summary-divider"></div>
+    <div class="week-summary-right">
+      {% if quick_crew %}
+      <div class="week-summary-label">오늘 운동했나요?</div>
+      <a href="{{ url_for('create_log', crew_id=quick_crew.id) }}" class="btn btn-primary btn-sm" style="margin-top:8px">
+        📸 바로 인증하기
+      </a>
+      {% else %}
+      <div class="week-summary-label">아직 크루가 없어요</div>
+      <a href="{{ url_for('create_crew') }}" class="btn btn-secondary btn-sm" style="margin-top:8px">+ 크루 만들기</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 크루 참여 -->
+  <div class="card join-card fade-up-2">
+    <form action="{{ url_for('join_crew') }}" method="post" class="join-input-row">
+      <input type="text" name="invite_code" placeholder="초대코드로 크루 참여…">
+      <button type="submit" class="btn btn-primary btn-sm">참여</button>
+    </form>
+    <a href="{{ url_for('create_crew') }}" class="btn btn-secondary btn-sm">+ 새 크루</a>
+  </div>
+
+  <div class="section-label fade-up-3">내 크루 {{ crews_data|length }}</div>
+
+  {% if crews_data %}
+  <div class="crew-bento fade-up-3">
+    {% for d in crews_data %}
+    {% set crew = d.crew %}
+    <a href="{{ url_for('crew_detail', crew_id=crew.id) }}" class="crew-card">
+      <div class="crew-card-inner">
+
+        <!-- 상단: 이름 + 동의 대기 뱃지 -->
+        <div class="crew-card-top">
+          <div class="crew-card-name">{{ crew.name }}</div>
+          {% if d.pending_count > 0 %}
+          <span class="crew-pending-badge">🤝 {{ d.pending_count }}</span>
+          {% endif %}
+        </div>
+
+        {% if crew.description %}<div class="crew-card-desc">{{ crew.description }}</div>{% endif %}
+
+        <!-- 내 진행률 바 -->
+        <div class="crew-card-progress-label">
+          <span>내 이번 주 달성률</span>
+          <span class="{% if d.my_pct >= 100 %}text-green{% elif d.my_pct >= 50 %}text-yellow{% else %}text-muted{% endif %}" style="font-weight:700;font-family:'Space Mono',monospace">{{ d.my_pct }}%</span>
+        </div>
+        <div class="progress-track" style="margin-bottom:14px">
+          <div class="progress-fill {% if d.my_pct >= 100 %}green{% elif d.my_pct >= 50 %}yellow{% endif %}"
+               style="width:{{ d.my_pct }}%"></div>
+        </div>
+
+        <!-- 하단 메타 -->
+        <div class="crew-card-meta-row">
+          <span class="crew-card-meta">
+            <span class="crew-card-dot"></span>
+            {{ crew.member_count }}명
+          </span>
+          <span class="crew-card-meta">
+            🔥 이번 주 {{ d.crew_logs_count }}회
+          </span>
+          <span class="crew-card-meta">
+            {% if d.last_log %}
+              🕐 {{ d.last_log.timestamp | kst_short }}
+            {% else %}
+              아직 인증 없음
+            {% endif %}
+          </span>
+        </div>
+
+      </div>
+    </a>
     {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state fade-up-3">
+    <div class="empty-state-icon">🏃</div>
+    <p>아직 속한 크루가 없어요.<br>크루를 만들거나 초대코드로 참여해보세요!</p>
+    <a href="{{ url_for('create_crew') }}" class="btn btn-primary mt-16">첫 크루 만들기</a>
+  </div>
+  {% endif %}
+
 </div>
-
-<div id="loading-sentinel" style="text-align: center; padding: 20px; visibility: hidden;">
-    <div class="spinner"></div> <p>불러오는 중...</p>
-</div>
-
-<script>
-    let page = 1;
-    let loading = false;
-    let hasMore = true;
-
-    // Intersection Observer 설정 (화면 하단 감지)
-    const observer = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && !loading && hasMore) {
-            loadMorePosts();
-        }
-    }, { threshold: 1.0 });
-
-    // 감시 시작
-    observer.observe(document.getElementById('loading-sentinel'));
-
-    async function loadMorePosts() {
-        loading = true;
-        page++;
-        
-        document.getElementById('loading-sentinel').style.visibility = 'visible';
-
-        try {
-            const response = await fetch(`/load-more?page=${page}`);
-            
-            if (response.status === 204) {
-                hasMore = false;
-                document.getElementById('loading-sentinel').innerHTML = '<p style="color: #8e8e8e;">마지막 게시물입니다.</p>';
-                return;
-            }
-
-            const html = await response.text();
-            if (html.trim() === "") {
-                hasMore = false;
-                return;
-            }
-
-            // 게시물 컨테이너에 추가
-            document.getElementById('post-container').insertAdjacentHTML('beforeend', html);
-        } catch (error) {
-            console.error("Error loading posts:", error);
-        } finally {
-            loading = false;
-            document.getElementById('loading-sentinel').style.visibility = 'hidden';
-        }
-    }
-
-    // --- 기존 캐러셀 함수 (동적으로 추가된 게시물에도 작동하도록 전역 유지) ---
-    function moveSlide(postId, direction) {
-        const container = document.getElementById('carousel-' + postId);
-        const slides = container.getElementsByClassName('carousel-slide');
-        const dots = container.getElementsByClassName('dot');
-        let currentIndex = 0;
-        for (let i = 0; i < slides.length; i++) {
-            if (slides[i].classList.contains('active')) {
-                currentIndex = i;
-                break;
-            }
-        }
-        let nextIndex = (currentIndex + direction + slides.length) % slides.length;
-        slides[currentIndex].classList.remove('active');
-        slides[nextIndex].classList.add('active');
-        if (dots.length > 0) {
-            dots[currentIndex].classList.remove('active');
-            dots[nextIndex].classList.add('active');
-        }
-    }
-</script>
 {% endblock %}

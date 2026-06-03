@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+{% block title %}새 크루 만들기 — Wogether{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-box fade-up" style="max-width:480px">
+    <div class="page-eyebrow">Create</div>
+    <div class="heading" style="margin-bottom:24px">새 크루 만들기</div>
+    <div class="card card-neon-p">
+      <form method="POST">
+        <div class="form-group">
+          <label class="form-label">크루 이름</label>
+          <input type="text" name="name" placeholder="예: 새벽 러닝 크루" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">소개 (선택)</label>
+          <textarea name="description" placeholder="크루를 소개해주세요" rows="3"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full mt-8">크루 생성 →</button>
+      </form>
+    </div>
+    <a href="{{ url_for('index') }}" class="btn btn-ghost btn-full mt-8">← 돌아가기</a>
+  </div>
+</div>
+{% endblock %}

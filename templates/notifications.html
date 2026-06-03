@@ -1,0 +1,40 @@
+{% extends "layout.html" %}
+{% block title %}알림 — Wogether{% endblock %}
+{% block content %}
+<div class="page-wrap">
+  <div class="fade-up mb-24">
+    <div class="page-eyebrow">Inbox</div>
+    <div class="heading">알림 🔔</div>
+  </div>
+  {% if notifications %}
+  <div class="noti-list fade-up-1">
+    {% for n in notifications %}
+    <div class="noti-item {% if not n.is_read %}unread{% endif %}">
+      <span class="noti-icon">
+        {% if n.type == 'nudge' %}👉
+        {% elif n.type == 'goal_request' %}🤝
+        {% elif n.type == 'goal_approved' %}✅
+        {% elif n.type == 'join' %}🎉
+        {% else %}🔔{% endif %}
+      </span>
+      <div class="noti-body">
+        <p class="noti-msg">{{ n.message }}</p>
+        <div class="noti-meta">
+          {{ n.created_at | kst }}
+          {% if n.crew_id %}
+          &nbsp;·&nbsp;
+          <a href="{{ url_for('crew_detail', crew_id=n.crew_id) }}" style="color:var(--purple-l)">크루 보기 →</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state fade-up-1">
+    <div class="empty-state-icon">🔔</div>
+    <p>알림이 없어요</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

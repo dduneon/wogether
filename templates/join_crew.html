@@ -1,0 +1,26 @@
+{% extends "layout.html" %}
+{% block title %}크루 참여 — Wogether{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-box fade-up" style="max-width:420px;text-align:center">
+    <div class="page-eyebrow">초대링크</div>
+    <div class="heading" style="margin-bottom:8px">크루 참여 🎉</div>
+    <p class="auth-sub" style="margin-bottom:24px">아래 크루에 초대받았어요</p>
+
+    <div class="card card-neon-p" style="text-align:left;margin-bottom:16px">
+      <div style="font-size:1.3rem;font-weight:700;margin-bottom:6px">{{ crew.name }}</div>
+      {% if crew.description %}
+      <p style="font-size:.9rem;color:var(--text-muted)">{{ crew.description }}</p>
+      {% endif %}
+      <div style="margin-top:12px;font-size:.85rem;color:var(--text-muted)">
+        멤버 {{ crew.member_count }}명
+      </div>
+    </div>
+
+    <form method="POST">
+      <button type="submit" class="btn btn-primary btn-full btn-lg">합류하기 →</button>
+    </form>
+    <a href="{{ url_for('index') }}" class="btn btn-ghost btn-full mt-8">취소</a>
+  </div>
+</div>
+{% endblock %}

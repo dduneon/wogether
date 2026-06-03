@@ -1,44 +1,205 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}오운스타그램{% endblock %}</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Wogether{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    /* ── Notification Popup ── */
+    .noti-popup-wrap { position: relative; }
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    .noti-bell-btn {
+      background: none; border: none; cursor: pointer;
+      font-size: .875rem; font-weight: 500; color: var(--text-muted);
+      padding: 7px 14px; border-radius: 999px; border: 1px solid transparent;
+      transition: all .2s; position: relative; font-family: inherit;
+    }
+    .noti-bell-btn:hover { color: var(--text); border-color: var(--border-h); background: var(--bg-3); }
 
-    <link href="https://fonts.googleapis.com/css2?family=Cookie&display=swap" rel="stylesheet">
+    .noti-badge {
+      position: absolute; top: 4px; right: 8px;
+      background: var(--red); color: #fff;
+      font-size: .6rem; font-weight: 700;
+      min-width: 16px; height: 16px;
+      border-radius: 999px; display: flex; align-items: center; justify-content: center;
+      padding: 0 4px;
+      box-shadow: 0 0 6px var(--red);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .noti-dropdown {
+      position: absolute; top: calc(100% + 8px); right: 0;
+      width: 340px; max-height: 460px; overflow-y: auto;
+      background: var(--bg-2); border: 1px solid var(--border-h);
+      border-radius: var(--radius); box-shadow: 0 16px 48px rgba(0,0,0,.7);
+      z-index: 9000;
+      display: none;
+      animation: fadeUp .2s ease;
+    }
+    .noti-dropdown.open { display: block; }
+
+    .noti-drop-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--border);
+      font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+    }
+    .noti-drop-head a { font-size: .75rem; color: var(--purple-l); font-weight: 600; text-transform: none; letter-spacing: 0; }
+
+    .noti-drop-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+      transition: background .15s; cursor: default;
+    }
+    .noti-drop-item:last-child { border-bottom: none; }
+    .noti-drop-item:hover { background: var(--bg-3); }
+    .noti-drop-item.unread { background: rgba(168,85,247,.05); border-left: 2px solid var(--purple); }
+    .noti-drop-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+    .noti-drop-msg  { font-size: .84rem; line-height: 1.4; margin-bottom: 3px; }
+    .noti-drop-time { font-size: .72rem; color: var(--text-muted); }
+    .noti-drop-link { font-size: .72rem; color: var(--purple-l); font-weight: 600; }
+    .noti-drop-empty { padding: 32px 16px; text-align: center; color: var(--text-muted); font-size: .875rem; }
+
+    /* ── Toast ── */
+    #toast-area {
+      position: fixed; bottom: 24px; right: 20px;
+      display: flex; flex-direction: column; gap: 8px;
+      z-index: 9999; pointer-events: none;
+    }
+    .toast {
+      background: var(--bg-3); border: 1px solid var(--border-h);
+      border-left: 3px solid var(--purple);
+      padding: 12px 16px; border-radius: var(--radius-sm);
+      font-size: .875rem; max-width: 320px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.5);
+      animation: slideInRight .3s ease;
+      pointer-events: auto;
+    }
+    .toast.removing { animation: slideOutRight .3s ease forwards; }
+    @keyframes slideInRight  { from { opacity:0; transform:translateX(24px); } to { opacity:1; transform:translateX(0); } }
+    @keyframes slideOutRight { from { opacity:1; transform:translateX(0); } to { opacity:0; transform:translateX(24px); } }
+  </style>
 </head>
 <body>
-    <header class="top-nav">
-        <div class="nav-content">
-            <a href="{{ url_for('index') }}" class="nav-logo">Owoonstagram</a>
-            <div class="nav-links">
-                {% if current_user.is_authenticated %}
-                    <a href="{{ url_for('create_post') }}">➕ 새 게시물</a>
-                    <a href="{{ url_for('profile', username=current_user.username) }}">👤 내 프로필</a>
-                    <a href="{{ url_for('logout') }}">로그아웃</a>
-                {% else %}
-                    <a href="{{ url_for('login') }}">로그인</a>
-                    <a href="{{ url_for('signup') }}">회원가입</a>
-                {% endif %}
+  <header class="top-nav">
+    <div class="nav-content">
+      <a href="{{ url_for('index') }}" class="nav-logo">Wogether</a>
+      <nav class="nav-links">
+        {% if current_user.is_authenticated %}
+          <!-- 알림 팝업 -->
+          <div class="noti-popup-wrap" id="noti-wrap">
+            <button class="noti-bell-btn" id="noti-btn" onclick="toggleNotiPopup()">
+              🔔 알림
+              <span class="noti-badge" id="noti-badge" style="display:none">0</span>
+            </button>
+            <div class="noti-dropdown" id="noti-dropdown">
+              <div class="noti-drop-head">
+                <span>알림</span>
+                <a href="{{ url_for('notifications') }}">전체 보기</a>
+              </div>
+              <div id="noti-list-inner">
+                <div class="noti-drop-empty">불러오는 중…</div>
+              </div>
             </div>
-        </div>
-    </header>
+          </div>
+          <a href="{{ url_for('create_crew') }}">+ 크루</a>
+          <a href="{{ url_for('logout') }}">로그아웃</a>
+        {% else %}
+          <a href="{{ url_for('login') }}">로그인</a>
+          <a href="{{ url_for('signup') }}">시작하기</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
 
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <ul class="flash-messages">
-        {% for message in messages %}
-          <li style="background: #fff; border: 1px solid #dbdbdb; padding: 10px; max-width: 600px; margin: 10px auto;">{{ message }}</li>
-        {% endfor %}
-        </ul>
-      {% endif %}
-    {% endwith %}
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <ul class="flash-messages">
+        {% for msg in messages %}<li class="flash-item">{{ msg }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
 
-    <main class="main-container">
-        {% block content %}{% endblock %}
-    </main>
+  <div id="toast-area"></div>
 
+  <main>{% block content %}{% endblock %}</main>
+
+  {% if current_user.is_authenticated %}
+  <script>
+  const NOTI_ICON = { nudge:'👉', goal_request:'🤝', goal_approved:'✅', join:'🎉' };
+
+  function notiIcon(type) { return NOTI_ICON[type] || '🔔'; }
+
+  function formatTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso + 'Z');
+    const kst = new Date(d.getTime() + 9*60*60*1000);
+    return kst.toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+
+  async function fetchUnreadCount() {
+    try {
+      const r = await fetch('/notifications/unread-count');
+      const d = await r.json();
+      const badge = document.getElementById('noti-badge');
+      if (d.count > 0) {
+        badge.textContent = d.count > 99 ? '99+' : d.count;
+        badge.style.display = 'flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    } catch(e) {}
+  }
+
+  async function loadNotiPopup() {
+    try {
+      const r = await fetch('/notifications/popup');
+      const items = await r.json();
+      document.getElementById('noti-badge').style.display = 'none';
+      const inner = document.getElementById('noti-list-inner');
+      if (!items.length) {
+        inner.innerHTML = '<div class="noti-drop-empty">알림이 없어요 😴</div>';
+        return;
+      }
+      inner.innerHTML = items.map(n => `
+        <div class="noti-drop-item ${n.is_read ? '' : 'unread'}">
+          <span class="noti-drop-icon">${notiIcon(n.type)}</span>
+          <div>
+            <div class="noti-drop-msg">${n.message}</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span class="noti-drop-time">${formatTime(n.created_at)}</span>
+              ${n.crew_id ? `<a href="/crew/${n.crew_id}" class="noti-drop-link">크루 보기 →</a>` : ''}
+            </div>
+          </div>
+        </div>`).join('');
+    } catch(e) {
+      document.getElementById('noti-list-inner').innerHTML = '<div class="noti-drop-empty">불러오기 실패</div>';
+    }
+  }
+
+  let popupOpen = false;
+
+  function toggleNotiPopup() {
+    const dd = document.getElementById('noti-dropdown');
+    popupOpen = !popupOpen;
+    dd.classList.toggle('open', popupOpen);
+    if (popupOpen) loadNotiPopup();
+  }
+
+  // 외부 클릭 시 팝업 닫기
+  document.addEventListener('click', (e) => {
+    if (!document.getElementById('noti-wrap').contains(e.target)) {
+      document.getElementById('noti-dropdown').classList.remove('open');
+      popupOpen = false;
+    }
+  });
+
+  // 페이지 로드 시 unread count 확인
+  fetchUnreadCount();
+  // 30초마다 갱신
+  setInterval(fetchUnreadCount, 30000);
+  </script>
+  {% endif %}
 </body>
 </html>

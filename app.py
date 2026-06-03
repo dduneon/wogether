@@ -1,60 +1,112 @@
 import os
+import secrets
+from functools import wraps
 from datetime import date, timedelta, datetime
-from flask import Flask, render_template, request, redirect, url_for, flash, abort, session
+from flask import (
+    Flask, render_template, request, redirect, url_for, flash, abort, session, jsonify
+)
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
+from flask_login import (
+    LoginManager, UserMixin, login_user, logout_user, current_user, login_required
+)
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from sqlalchemy import func, distinct
-import calendar  # 캘린더 출력을 위해
+from sqlalchemy import func
 from PIL import Image
+
+# =====================================================================
+# Wogether (워게더) - 친구들과 크루를 맺고, 목표를 세우고, 운동을 인증하고,
+#                     서로 독촉하며 함께 운동 목표를 달성하는 서비스
+# =====================================================================
 
 # --- 1. 앱 설정 ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static/uploads')
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your_very_secret_key_change_this'  # 👈 **중요: 실제 배포 시 변경**
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(BASE_DIR, 'owoon.db')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'wogether_dev_secret_change_in_prod')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(BASE_DIR, 'wogether.db')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 
-# "영구" 세션의 수명을 365일로 설정
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
-# Flask-Login의 "Remember Me" 쿠키 수명을 365일로 설정
 app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=365)
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
-login_manager.login_view = 'login'  # 로그인이 필요한 페이지 접근 시 'login' 라우트로 리다이렉트
+login_manager.login_view = 'login'
 login_manager.login_message = "로그인이 필요합니다."
+
+
+# --- KST 헬퍼 ---
+def kst_now():
+    """현재 시각을 KST(UTC+9)로 반환"""
+    return datetime.utcnow() + timedelta(hours=9)
+
+
+def week_range_kst(reference=None):
+    """KST 기준 이번 주(월~일) 범위를 (월요일 00:00, 다음주 월요일 00:00) UTC datetime으로 반환"""
+    ref = reference or kst_now()
+    today = ref.date()
+    monday = today - timedelta(days=today.weekday())  # 이번 주 월요일 (KST date)
+    next_monday = monday + timedelta(days=7)
+    # KST date -> UTC datetime 경계 (KST 00:00 == UTC 전날 15:00)
+    start_utc = datetime(monday.year, monday.month, monday.day) - timedelta(hours=9)
+    end_utc = datetime(next_monday.year, next_monday.month, next_monday.day) - timedelta(hours=9)
+    return start_utc, end_utc
+
 
 @app.template_filter('kst')
 def format_kst(utc_datetime):
-    """UTC 시간을 KST (UTC+9)로 변환하고 포맷팅하는 필터"""
     if not utc_datetime:
         return ""
-
-    # KST는 UTC+9
     kst_datetime = utc_datetime + timedelta(hours=9)
-
-    # 원하는 날짜/시간 형식으로 반환
     return kst_datetime.strftime('%Y년 %m월 %d일 %H:%M')
+
+
+@app.template_filter('kst_date')
+def format_kst_date(utc_datetime):
+    """날짜만 표시 (YYYY년 MM월 DD일)"""
+    if not utc_datetime:
+        return ""
+    kst_dt = utc_datetime + timedelta(hours=9)
+    return kst_dt.strftime('%Y년 %m월 %d일')
+
+@app.template_filter('kst_short')
+def format_kst_short(utc_datetime):
+    """상대적 시간 표시 (오늘/어제/N일 전)"""
+    if not utc_datetime:
+        return ""
+    kst_now = datetime.utcnow() + timedelta(hours=9)
+    kst_dt = utc_datetime + timedelta(hours=9)
+    delta = kst_now.date() - kst_dt.date()
+    if delta.days == 0:
+        return f"오늘 {kst_dt.strftime('%H:%M')}"
+    elif delta.days == 1:
+        return "어제"
+    elif delta.days < 7:
+        return f"{delta.days}일 전"
+    else:
+        return kst_dt.strftime('%m/%d')
+
 
 # --- 2. 데이터베이스 모델 ---
 
-# UserMixin은 Flask-Login이 요구하는 기본 메서드들을 (is_authenticated 등) 포함
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)  # 아이디
+    username = db.Column(db.String(80), unique=True, nullable=False)
     nickname = db.Column(db.String(80), nullable=False)
-    password_hash = db.Column(db.String(128))
-    # vvvv 수정: cascade(종속 삭제) 옵션 추가 및 새 관계 정의 vvvv
-    posts = db.relationship('Post', backref='author', lazy=True, cascade='all, delete-orphan')
-    likes = db.relationship('Like', backref='author', lazy='dynamic', cascade='all, delete-orphan')
-    comments = db.relationship('Comment', backref='author', lazy='dynamic', cascade='all, delete-orphan')
-    # ^^^^ 수정 완료 ^^^^
+    password_hash = db.Column(db.String(256))
+    api_token = db.Column(db.String(64), unique=True, index=True)  # 안드로이드 앱 인증용
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    memberships = db.relationship('CrewMembership', backref='user', lazy='dynamic',
+                                  cascade='all, delete-orphan')
+    goals = db.relationship('Goal', backref='user', lazy='dynamic',
+                            cascade='all, delete-orphan')
+    workout_logs = db.relationship('WorkoutLog', backref='author', lazy='dynamic',
+                                   cascade='all, delete-orphan')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -62,91 +114,308 @@ class User(UserMixin, db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+    def generate_token(self):
+        self.api_token = secrets.token_hex(32)
+        return self.api_token
+
+    @property
+    def crews(self):
+        """이 유저가 속한 크루 목록"""
+        return [m.crew for m in self.memberships]
+
+    def is_member_of(self, crew):
+        return CrewMembership.query.filter_by(user_id=self.id, crew_id=crew.id).first() is not None
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'nickname': self.nickname,
+        }
+
     def __repr__(self):
         return f'<User {self.username}>'
 
-# [신규 추가] 사진 테이블
-class PostImage(db.Model):
+
+class Crew(db.Model):
+    """크루(파티)"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
+    description = db.Column(db.String(300), nullable=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    invite_code = db.Column(db.String(12), unique=True, index=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    owner = db.relationship('User', foreign_keys=[owner_id])
+    memberships = db.relationship('CrewMembership', backref='crew', lazy='dynamic',
+                                  cascade='all, delete-orphan')
+    goals = db.relationship('Goal', backref='crew', lazy='dynamic',
+                            cascade='all, delete-orphan')
+    workout_logs = db.relationship('WorkoutLog', backref='crew', lazy='dynamic',
+                                   cascade='all, delete-orphan')
+
+    @staticmethod
+    def generate_invite_code():
+        while True:
+            code = secrets.token_urlsafe(6)[:8]
+            if not Crew.query.filter_by(invite_code=code).first():
+                return code
+
+    @property
+    def members(self):
+        return [m.user for m in self.memberships]
+
+    @property
+    def member_count(self):
+        return self.memberships.count()
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'owner_id': self.owner_id,
+            'invite_code': self.invite_code,
+            'member_count': self.member_count,
+        }
+
+    def __repr__(self):
+        return f'<Crew {self.name}>'
+
+
+class CrewMembership(db.Model):
+    """크루 멤버십 (유저 <-> 크루 다대다)"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    crew_id = db.Column(db.Integer, db.ForeignKey('crew.id', ondelete='CASCADE'), nullable=False)
+    role = db.Column(db.String(20), default='member')  # 'owner' | 'member'
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint('user_id', 'crew_id', name='_user_crew_uc'),)
+
+
+class Goal(db.Model):
+    """개인 목표 (크루 내에서 설정, 주당 횟수)"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    crew_id = db.Column(db.Integer, db.ForeignKey('crew.id', ondelete='CASCADE'), nullable=False)
+    title = db.Column(db.String(120), nullable=False)             # 예: "주 3회 러닝"
+    category = db.Column(db.String(40), nullable=False, default='기타')
+    description = db.Column(db.String(300), nullable=True)
+    frequency_per_week = db.Column(db.Integer, nullable=False, default=3)
+    status = db.Column(db.String(20), default='pending')          # pending | approved | rejected
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    approvals = db.relationship('GoalApproval', backref='goal', lazy='dynamic',
+                                cascade='all, delete-orphan')
+
+    def approval_state(self):
+        """팀원 동의 현황: (동의 수, 전체 대상 수)"""
+        total = max(self.crew.member_count - 1, 0)  # 본인 제외
+        approved = self.approvals.filter_by(approved=True).count()
+        return approved, total
+
+    def refresh_status(self):
+        """모든 팀원이 동의하면 approved로 전환"""
+        approved, total = self.approval_state()
+        if total == 0:
+            self.status = 'approved'  # 1인 크루는 자동 승인
+        elif approved >= total:
+            self.status = 'approved'
+        return self.status
+
+    def progress_this_week(self):
+        """이번 주 진행률: (인증 횟수, 목표 횟수, 퍼센트)"""
+        start_utc, end_utc = week_range_kst()
+        done = WorkoutLog.query.filter(
+            WorkoutLog.user_id == self.user_id,
+            WorkoutLog.crew_id == self.crew_id,
+            WorkoutLog.goal_id == self.id,
+            WorkoutLog.timestamp >= start_utc,
+            WorkoutLog.timestamp < end_utc,
+        ).count()
+        freq = self.frequency_per_week or 1
+        percent = min(100, round(done / freq * 100))
+        return done, freq, percent
+
+    def to_dict(self):
+        done, freq, percent = self.progress_this_week()
+        approved, total = self.approval_state()
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'crew_id': self.crew_id,
+            'title': self.title,
+            'category': self.category,
+            'description': self.description,
+            'frequency_per_week': self.frequency_per_week,
+            'status': self.status,
+            'progress': {'done': done, 'target': freq, 'percent': percent},
+            'approval': {'approved': approved, 'total': total},
+        }
+
+
+class GoalApproval(db.Model):
+    """팀원의 목표 동의"""
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey('goal.id', ondelete='CASCADE'), nullable=False)
+    approver_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    approved = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    approver = db.relationship('User', foreign_keys=[approver_id])
+
+    __table_args__ = (db.UniqueConstraint('goal_id', 'approver_id', name='_goal_approver_uc'),)
+
+
+class WorkoutLog(db.Model):
+    """운동 인증 기록"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    crew_id = db.Column(db.Integer, db.ForeignKey('crew.id', ondelete='CASCADE'), nullable=False)
+    goal_id = db.Column(db.Integer, db.ForeignKey('goal.id', ondelete='SET NULL'), nullable=True)
+    workout_type = db.Column(db.String(40), nullable=True)   # 예: 러닝, 헬스, 요가 ...
+    caption = db.Column(db.String(300), nullable=True)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+
+    goal = db.relationship('Goal', foreign_keys=[goal_id])
+    images = db.relationship('WorkoutImage', backref='log', lazy=True,
+                             cascade='all, delete-orphan')
+
+    @property
+    def representative_image_url(self):
+        if self.images:
+            return self.images[0].image_url
+        return None
+
+    @property
+    def like_count(self):
+        return WorkoutLike.query.filter_by(log_id=self.id).count()
+
+    def is_liked_by(self, user_id):
+        return WorkoutLike.query.filter_by(log_id=self.id, user_id=user_id).first() is not None
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user': self.author.to_dict(),
+            'crew_id': self.crew_id,
+            'goal_id': self.goal_id,
+            'workout_type': self.workout_type,
+            'caption': self.caption,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'images': [img.image_url for img in self.images],
+            'like_count': self.like_count,
+        }
+
+
+class WorkoutImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(120), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id', ondelete='CASCADE'), nullable=False)
+    log_id = db.Column(db.Integer, db.ForeignKey('workout_log.id', ondelete='CASCADE'), nullable=False)
 
     @property
     def image_url(self):
         return url_for('static', filename=f'uploads/{self.filename}')
 
-class Post(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    caption = db.Column(db.String(200), nullable=True)
-    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
-    images = db.relationship('PostImage', backref='post', lazy=True, cascade='all, delete-orphan')
-    # vvvv 수정: 새 관계 정의 vvvv
-    likes = db.relationship('Like', backref='post', lazy='dynamic', cascade='all, delete-orphan')
-    # (수정) 댓글이 항상 오래된순(asc)으로 정렬되도록 lambda로 기본값 설정
-    comments = db.relationship(
-        'Comment',
-        backref='post',
-        lazy='dynamic',
-        cascade='all, delete-orphan',
-        order_by=lambda: Comment.timestamp.asc() # 👈 이 라인 추가
+class WorkoutLike(db.Model):
+    """운동 인증 좋아요"""
+    id = db.Column(db.Integer, primary_key=True)
+    log_id = db.Column(db.Integer, db.ForeignKey('workout_log.id', ondelete='CASCADE'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint('log_id', 'user_id', name='_log_user_like_uc'),)
+
+
+class Notification(db.Model):
+    """알림 (독촉 등)"""
+    id = db.Column(db.Integer, primary_key=True)
+    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    crew_id = db.Column(db.Integer, db.ForeignKey('crew.id', ondelete='CASCADE'), nullable=True)
+    type = db.Column(db.String(30), default='nudge')   # nudge | goal_request | goal_approved | ...
+    message = db.Column(db.String(300), nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    recipient = db.relationship('User', foreign_keys=[recipient_id])
+    sender = db.relationship('User', foreign_keys=[sender_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'sender': self.sender.to_dict() if self.sender else None,
+            'crew_id': self.crew_id,
+            'type': self.type,
+            'message': self.message,
+            'is_read': self.is_read,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class CrewActivity(db.Model):
+    """크루 피드에 표시되는 시스템 이벤트"""
+    id = db.Column(db.Integer, primary_key=True)
+    crew_id = db.Column(db.Integer, db.ForeignKey('crew.id', ondelete='CASCADE'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    # join | goal_added | goal_approved | goal_rejected | goal_completed
+    event_type = db.Column(db.String(30), nullable=False)
+    meta = db.Column(db.String(300), nullable=True)   # JSON 문자열 (goal_title 등)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', foreign_keys=[user_id])
+    crew = db.relationship('Crew', foreign_keys=[crew_id])
+
+
+def record_activity(crew_id, user_id, event_type, **meta):
+    import json
+    act = CrewActivity(
+        crew_id=crew_id, user_id=user_id,
+        event_type=event_type,
+        meta=json.dumps(meta, ensure_ascii=False) if meta else None,
     )
-    # ^^^^ 수정 완료 ^^^^
-    # [수정] 대표 이미지(첫 번째 사진) URL을 가져오는 헬퍼 속성
-    @property
-    def representative_image_url(self):
-        if self.images:
-            return self.images[0].image_url
-        return None # 사진이 없는 경우 (예외 처리)
+    db.session.add(act)
+    return act
 
-     # vvvv (추가) 현재 유저가 이 포스트를 '좋아요' 했는지 확인하는 헬퍼 함수 vvvv
-    def is_liked_by(self, user):
-        # vvvv 이 2줄을 추가하세요 vvvv
-        if not user.is_authenticated:
-            return False
-        # ^^^^ 여기까지 ^^^^
-        return Like.query.filter(
-            Like.user_id == user.id,
-            Like.post_id == self.id
-        ).count() > 0
-    # ^^^^ 추가 완료 ^^^^
 
-    def __repr__(self):
-        return f'<Post {self.id}>'
-
-class Like(db.Model):
-    __tablename__ = 'like'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id', ondelete='CASCADE'), nullable=False)
-
-    # 한 유저가 한 포스트에 한 번만 '좋아요' 누를 수 있도록 Unique 제약 설정
-    __table_args__ = (db.UniqueConstraint('user_id', 'post_id', name='_user_post_uc'),)
-
-    def __repr__(self):
-        return f'<Like {self.user_id} -> {self.post_id}>'
-
-class Comment(db.Model):
-    __tablename__ = 'comment'
-    id = db.Column(db.Integer, primary_key=True)
-    text = db.Column(db.String(300), nullable=False)
-    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
-
-    # 관계 설정 (누가 썼는지, 어느 포스트에 달렸는지)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id', ondelete='CASCADE'), nullable=False)
-
-    def __repr__(self):
-        return f'<Comment {self.id} by {self.user_id}>'
-
-# Flask-Login을 위한 사용자 로더
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
 
-# --- 3. 인증 관련 라우트 ---
+# --- 알림 생성 헬퍼 ---
+def push_notification(recipient_id, message, sender_id=None, crew_id=None, n_type='nudge'):
+    noti = Notification(
+        recipient_id=recipient_id, sender_id=sender_id,
+        crew_id=crew_id, type=n_type, message=message,
+    )
+    db.session.add(noti)
+    return noti
+
+
+# --- 파일 저장 헬퍼 ---
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def save_optimized_image(file):
+    """업로드 이미지를 WebP로 최적화 저장하고 파일명 반환"""
+    base = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{secure_filename(file.filename)}"
+    img = Image.open(file)
+    img.thumbnail((1080, 1080))
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    filename = base.rsplit('.', 1)[0] + '.webp'
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    img.save(filepath, 'WEBP', quality=80)
+    return filename
+
+
+# =====================================================================
+# 3. 웹 - 인증 라우트
+# =====================================================================
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -158,13 +427,13 @@ def signup():
         nickname = request.form['nickname']
         password = request.form['password']
 
-        user_by_username = User.query.filter_by(username=username).first()
-        if user_by_username:
+        if User.query.filter_by(username=username).first():
             flash('이미 존재하는 아이디입니다.')
             return redirect(url_for('signup'))
 
         new_user = User(username=username, nickname=nickname)
         new_user.set_password(password)
+        new_user.generate_token()
         db.session.add(new_user)
         db.session.commit()
 
@@ -188,9 +457,8 @@ def login():
             flash('아이디 또는 비밀번호가 올바르지 않습니다.')
             return redirect(url_for('login'))
 
-        login_user(user, remember=True)  # Flask-Login을 통해 세션에 사용자 정보 저장
+        login_user(user, remember=True)
         session.permanent = True
-
         return redirect(url_for('index'))
 
     return render_template('login.html')
@@ -203,288 +471,697 @@ def logout():
     return redirect(url_for('index'))
 
 
-# --- 4. 핵심 기능 라우트 ---
+# =====================================================================
+# 4. 웹 - 메인 / 크루
+# =====================================================================
 
 @app.route('/')
 def index():
-    # 처음 접속 시 페이지 1의 게시물 5개만 가져옴
-    page = 1
-    per_page = 3
-    posts = Post.query.order_by(Post.timestamp.desc()).paginate(page=page, per_page=per_page, error_out=False).items
-    return render_template('index.html', posts=posts)
+    if not current_user.is_authenticated:
+        return render_template('landing.html')
 
-@app.route('/load-more')
-def load_more():
-    # 자바스크립트에서 보낸 페이지 번호를 받음
-    page = request.args.get('page', 1, type=int)
-    per_page = 3
+    crews = current_user.crews
+    unread = Notification.query.filter_by(recipient_id=current_user.id, is_read=False).count()
+    start_utc, end_utc = week_range_kst()
 
-    pagination = Post.query.order_by(Post.timestamp.desc()).paginate(page=page, per_page=per_page, error_out=False)
-    posts = pagination.items
+    # 이번 주 전체 인증 수 (모든 크루 합산)
+    total_logs_this_week = WorkoutLog.query.filter(
+        WorkoutLog.user_id == current_user.id,
+        WorkoutLog.timestamp >= start_utc,
+        WorkoutLog.timestamp < end_utc,
+    ).count()
 
-    if not posts:
-        return '', 204 # 더 이상 게시물이 없으면 '내용 없음' 상태코드 반환
+    # 가장 최근 인증한 크루 (퀵 액션용)
+    latest_log = WorkoutLog.query.filter_by(user_id=current_user.id)\
+        .order_by(WorkoutLog.timestamp.desc()).first()
+    quick_crew = latest_log.crew if latest_log else (crews[0] if crews else None)
 
-    # _post_card.html 조각들을 합쳐서 문자열로 반환
-    html = ""
-    for post in posts:
-        html += render_template('_post_card.html', post=post)
+    # 크루별 상세 데이터
+    crews_data = []
+    for crew in crews:
+        # 내 이번 주 진행률
+        my_goals = Goal.query.filter_by(user_id=current_user.id, crew_id=crew.id, status='approved').all()
+        if my_goals:
+            percents = [g.progress_this_week()[2] for g in my_goals]
+            my_pct = round(sum(percents) / len(percents))
+        else:
+            my_pct = 0
 
-    return html
+        # 크루 전체 이번 주 인증 수
+        crew_logs_count = WorkoutLog.query.filter(
+            WorkoutLog.crew_id == crew.id,
+            WorkoutLog.timestamp >= start_utc,
+            WorkoutLog.timestamp < end_utc,
+        ).count()
 
-# 파일 확장자 확인
-def allowed_file(filename):
-    return '.' in filename and \
-        filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+        # 마지막 인증 (크루 전체)
+        last_log = crew.workout_logs.order_by(WorkoutLog.timestamp.desc()).first()
+
+        # 내가 동의 안 한 대기 목표 수
+        pending_goals = Goal.query.filter(
+            Goal.crew_id == crew.id,
+            Goal.status == 'pending',
+            Goal.user_id != current_user.id,
+        ).all()
+        pending_count = sum(
+            1 for g in pending_goals
+            if not g.approvals.filter_by(approver_id=current_user.id).first()
+        )
+
+        crews_data.append({
+            'crew': crew,
+            'my_pct': my_pct,
+            'crew_logs_count': crew_logs_count,
+            'last_log': last_log,
+            'pending_count': pending_count,
+        })
+
+    return render_template('index.html', crews_data=crews_data, unread=unread,
+                           total_logs_this_week=total_logs_this_week, quick_crew=quick_crew)
 
 
-@app.route('/create', methods=['GET', 'POST'])
+@app.route('/crew/create', methods=['GET', 'POST'])
 @login_required
-def create_post():
+def create_crew():
     if request.method == 'POST':
-        # 'photo'가 getlist로 여러 파일을 받음
-        files = request.files.getlist('photo')
-        caption = request.form.get('caption') # .get() 사용 권장
+        name = request.form['name']
+        description = request.form.get('description', '')
 
-        # 파일이 하나도 없는 경우 체크
+        crew = Crew(name=name, description=description, owner_id=current_user.id,
+                    invite_code=Crew.generate_invite_code())
+        db.session.add(crew)
+        db.session.flush()
+
+        membership = CrewMembership(user_id=current_user.id, crew_id=crew.id, role='owner')
+        db.session.add(membership)
+        db.session.commit()
+
+        flash(f'크루 "{crew.name}" 생성 완료! 초대코드: {crew.invite_code}')
+        return redirect(url_for('crew_detail', crew_id=crew.id))
+
+    return render_template('create_crew.html')
+
+
+@app.route('/crew/join', methods=['POST'])
+@login_required
+def join_crew():
+    code = request.form.get('invite_code', '').strip()
+    return redirect(url_for('join_crew_link', code=code))
+
+
+@app.route('/join/<code>', methods=['GET', 'POST'])
+@login_required
+def join_crew_link(code):
+    """초대링크로 크루 합류 (GET: 확인 화면, POST: 실제 가입)"""
+    crew = Crew.query.filter_by(invite_code=code).first_or_404()
+
+    if current_user.is_member_of(crew):
+        flash('이미 가입한 크루입니다.')
+        return redirect(url_for('crew_detail', crew_id=crew.id))
+
+    if request.method == 'POST':
+        membership = CrewMembership(user_id=current_user.id, crew_id=crew.id, role='member')
+        db.session.add(membership)
+        for m in crew.memberships:
+            if m.user_id != current_user.id:
+                push_notification(m.user_id,
+                                  f'{current_user.nickname}님이 "{crew.name}" 크루에 합류했어요!',
+                                  sender_id=current_user.id, crew_id=crew.id, n_type='join')
+        record_activity(crew.id, current_user.id, 'join')
+        db.session.commit()
+        flash(f'"{crew.name}" 크루에 합류했어요! 🎉')
+        return redirect(url_for('crew_detail', crew_id=crew.id))
+
+    return render_template('join_crew.html', crew=crew, code=code)
+
+
+@app.route('/crew/<int:crew_id>')
+@login_required
+def crew_detail(crew_id):
+    crew = Crew.query.get_or_404(crew_id)
+    if not current_user.is_member_of(crew):
+        abort(403)
+
+    # 멤버별 이번 주 진행 현황
+    members_data = []
+    for m in crew.memberships:
+        user = m.user
+        goals = Goal.query.filter_by(user_id=user.id, crew_id=crew.id).all()
+        # 멤버 종합 진행률 (목표들의 평균)
+        if goals:
+            percents = [g.progress_this_week()[2] for g in goals]
+            avg_percent = round(sum(percents) / len(percents))
+        else:
+            avg_percent = 0
+        members_data.append({
+            'user': user,
+            'role': m.role,
+            'goals': goals,
+            'avg_percent': avg_percent,
+        })
+
+    # 최근 인증 피드 + 시스템 활동 합치기
+    import json as _json
+    logs = crew.workout_logs.order_by(WorkoutLog.timestamp.desc()).limit(30).all()
+    activities = CrewActivity.query.filter_by(crew_id=crew.id)\
+        .order_by(CrewActivity.created_at.desc()).limit(30).all()
+    for act in activities:
+        act.meta_dict = _json.loads(act.meta) if act.meta else {}
+
+    feed_items = sorted(
+        [{'type': 'log', 'ts': l.timestamp, 'obj': l} for l in logs] +
+        [{'type': 'activity', 'ts': a.created_at, 'obj': a} for a in activities],
+        key=lambda x: x['ts'], reverse=True
+    )[:40]
+
+    # 내가 승인해야 할 (대기중) 다른 사람 목표
+    pending_goals = Goal.query.filter(
+        Goal.crew_id == crew.id,
+        Goal.status == 'pending',
+        Goal.user_id != current_user.id,
+    ).all()
+    pending_for_me = [
+        g for g in pending_goals
+        if not g.approvals.filter_by(approver_id=current_user.id).first()
+    ]
+
+    return render_template('crew_detail.html', crew=crew, members_data=members_data,
+                           logs=logs, feed_items=feed_items, pending_for_me=pending_for_me)
+
+
+@app.route('/crew/<int:crew_id>/leave', methods=['POST'])
+@login_required
+def leave_crew(crew_id):
+    crew = Crew.query.get_or_404(crew_id)
+    membership = CrewMembership.query.filter_by(user_id=current_user.id, crew_id=crew.id).first()
+    if not membership:
+        abort(403)
+
+    if crew.owner_id == current_user.id:
+        flash('크루장은 탈퇴할 수 없습니다. 크루를 삭제하거나 위임하세요.')
+        return redirect(url_for('crew_detail', crew_id=crew.id))
+
+    db.session.delete(membership)
+    db.session.commit()
+    flash(f'"{crew.name}" 크루에서 나왔습니다.')
+    return redirect(url_for('index'))
+
+
+# =====================================================================
+# 5. 웹 - 목표
+# =====================================================================
+
+@app.route('/crew/<int:crew_id>/goal/create', methods=['GET', 'POST'])
+@login_required
+def create_goal(crew_id):
+    crew = Crew.query.get_or_404(crew_id)
+    if not current_user.is_member_of(crew):
+        abort(403)
+
+    if request.method == 'POST':
+        title = request.form['title']
+        category = request.form.get('category', '기타')
+        description = request.form.get('description', '').strip() or None
+        frequency = int(request.form.get('frequency_per_week', 3))
+
+        goal = Goal(user_id=current_user.id, crew_id=crew.id,
+                    title=title, category=category, description=description,
+                    frequency_per_week=frequency, status='pending')
+        db.session.add(goal)
+        db.session.flush()
+        goal.refresh_status()  # 1인 크루면 자동 승인
+
+        # 팀원들에게 동의 요청 알림
+        for m in crew.memberships:
+            if m.user_id != current_user.id:
+                push_notification(m.user_id,
+                                  f'{current_user.nickname}님의 목표 "{title}"에 동의해주세요.',
+                                  sender_id=current_user.id, crew_id=crew.id,
+                                  n_type='goal_request')
+        record_activity(crew.id, current_user.id, 'goal_added',
+                        goal_title=title, category=category, frequency=frequency)
+        db.session.commit()
+
+        flash('목표를 등록했어요! 팀원들의 동의를 기다립니다.')
+        return redirect(url_for('crew_detail', crew_id=crew.id))
+
+    return render_template('create_goal.html', crew=crew)
+
+
+@app.route('/goal/<int:goal_id>/approve', methods=['POST'])
+@login_required
+def approve_goal(goal_id):
+    goal = Goal.query.get_or_404(goal_id)
+    if not current_user.is_member_of(goal.crew):
+        abort(403)
+    if goal.user_id == current_user.id:
+        flash('본인 목표는 동의할 수 없습니다.')
+        return redirect(url_for('crew_detail', crew_id=goal.crew_id))
+
+    existing = goal.approvals.filter_by(approver_id=current_user.id).first()
+    if not existing:
+        approval = GoalApproval(goal_id=goal.id, approver_id=current_user.id, approved=True)
+        db.session.add(approval)
+        db.session.flush()
+        prev_status = goal.status
+        goal.refresh_status()
+        if goal.status == 'approved' and prev_status != 'approved':
+            push_notification(goal.user_id,
+                              f'목표 "{goal.title}"가 모든 팀원의 동의를 받았어요! 💪',
+                              crew_id=goal.crew_id, n_type='goal_approved')
+            record_activity(goal.crew_id, goal.user_id, 'goal_approved',
+                            goal_title=goal.title)
+        db.session.commit()
+        flash('목표에 동의했습니다.')
+
+    return redirect(url_for('crew_detail', crew_id=goal.crew_id))
+
+
+@app.route('/goal/<int:goal_id>/delete', methods=['POST'])
+@login_required
+def delete_goal(goal_id):
+    goal = Goal.query.get_or_404(goal_id)
+    if goal.user_id != current_user.id:
+        abort(403)
+    crew_id = goal.crew_id
+    db.session.delete(goal)
+    db.session.commit()
+    flash('목표를 삭제했습니다.')
+    return redirect(url_for('crew_detail', crew_id=crew_id))
+
+
+# =====================================================================
+# 6. 웹 - 운동 인증
+# =====================================================================
+
+@app.route('/crew/<int:crew_id>/log', methods=['GET', 'POST'])
+@login_required
+def create_log(crew_id):
+    crew = Crew.query.get_or_404(crew_id)
+    if not current_user.is_member_of(crew):
+        abort(403)
+
+    my_goals = Goal.query.filter_by(user_id=current_user.id, crew_id=crew.id,
+                                    status='approved').all()
+
+    if request.method == 'POST':
+        files = request.files.getlist('photo')
+        caption = request.form.get('caption')
+        workout_type = request.form.get('workout_type')
+        goal_id = request.form.get('goal_id', type=int)
+
         if not files or files[0].filename == '':
-            flash('사진을 최소 한 장 이상 선택해주세요.')
+            flash('인증 사진을 최소 한 장 이상 올려주세요.')
             return redirect(request.url)
 
-        # 1. Post 객체 먼저 생성 (DB에 저장해야 ID가 생김)
-        new_post = Post(caption=caption, author=current_user)
-        db.session.add(new_post)
-        db.session.flush() # commit 전이지만 id를 생성하기 위해 flush() 사용
+        log = WorkoutLog(user_id=current_user.id, crew_id=crew.id,
+                         goal_id=goal_id if goal_id else None,
+                         workout_type=workout_type, caption=caption)
+        db.session.add(log)
+        db.session.flush()
 
-        # 2. 파일들을 순회하며 저장 및 DB 연결
         for file in files:
             if file and allowed_file(file.filename):
-                filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{secure_filename(file.filename)}"
+                filename = save_optimized_image(file)
+                db.session.add(WorkoutImage(filename=filename, log=log))
 
-                # --- 이미지 최적화 로직 추가 ---
-                img = Image.open(file)
-                # 1. 이미지 크기 조정 (최대 가로 1080px 수준으로)
-                img.thumbnail((1080, 1080))
-                # 2. RGB 모드로 변환 (PNG나 다른 포맷 대응)
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                # 3. WebP 포맷으로 압축 저장 (JPEG보다 효율적)
-                filename = filename.rsplit('.', 1)[0] + '.webp'
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                img.save(filepath, 'WEBP', quality=80) # 품질 80%로 압축
-                # ----------------------------
-        
-                # PostImage 객체 생성
-                new_image = PostImage(filename=filename, post=new_post)
-                db.session.add(new_image)
-
-        db.session.commit() # 최종 저장
-
-        flash('오운완 인증! 🥳')
-        return redirect(url_for('profile', username=current_user.username))
-
-    return render_template('create_post.html')
-
-
-@app.route('/profile/<username>')
-def profile(username):
-    user = User.query.filter_by(username=username).first_or_404()
-
-    # --- 핵심 로직: 통계 계산 ---
-    kst_now = datetime.utcnow() + timedelta(hours=9)
-    today_kst = kst_now.date() # KST 기준 오늘 날짜 (예: 2025-11-17)
-    current_year = today_kst.year
-    current_month = today_kst.month
-
-    # 1. 사용자의 모든 운동 기록 (날짜만, 중복 제거)
-    workout_dates_query = db.session.query(
-        func.date(func.datetime(Post.timestamp, '+9 hours'))
-    ).filter(Post.user_id == user.id).distinct().order_by(
-        func.date(func.datetime(Post.timestamp, '+9 hours')).desc()
-    )
-
-    # 쿼리 결과를 set(날짜 객체)으로 변환
-    # 쿼리 결과를 set(날짜 객체)으로 변환
-    # r[0]는 'YYYY-MM-DD' 문자열이므로 date 객체로 변환
-    # 3. KST 날짜 문자열('YYYY-MM-DD')을 date 객체 set으로 변환
-    workout_dates_kst = {
-        datetime.strptime(r[0], '%Y-%m-%d').date()
-        for r in workout_dates_query.all()
-    }
-    
-
-    # 2. 연속 운동일 (Streak) 계산
-    streak = 0
-    check_date = today_kst
-
-    # 오늘(KST) 운동했는지 확인
-    if check_date in workout_dates_kst:
-        streak += 1
-        check_date -= timedelta(days=1)
-        # 어제(KST)부터 거슬러 올라가며 확인
-        while check_date in workout_dates_kst:
-            streak += 1
-            check_date -= timedelta(days=1)
-    # 오늘(KST) 안 했으면, 어제(KST) 운동했는지 확인
-    elif (check_date - timedelta(days=1)) in workout_dates_kst:
-        check_date -= timedelta(days=1) # 어제부터 시작
-        streak += 1
-        check_date -= timedelta(days=1)
-        while check_date in workout_dates_kst:
-            streak += 1
-            check_date -= timedelta(days=1)
-
-    # 5. (수정) 이번 달 운동 일수 (KST 기준)
-    start_of_month_kst = date(current_year, current_month, 1)
-    monthly_count = sum(1 for d in workout_dates_kst if d >= start_of_month_kst)
-
-    # 6. 캘린더 데이터 생성
-    cal_data = calendar.monthcalendar(current_year, current_month)
-
-    # 7. (수정) 이번 달 캘린더에 표시할 날짜 (KST 기준)
-    workout_days_this_month = {d.day for d in workout_dates_kst if d.year == current_year and d.month == current_month}
-
-    return render_template(
-        'profile.html',
-        user=user,
-        streak=streak,
-        monthly_count=monthly_count,
-        calendar_data=cal_data,
-        workout_days=workout_days_this_month,
-        today=today_kst # KST 오늘 날짜를 템플릿으로 전달
-    )
-
-# app.py 파일 맨 아래, if __name__ == '__main__': 구문 *위에* 추가하세요.
-
-@app.route('/post/<int:post_id>/delete', methods=['POST'])
-@login_required
-def delete_post(post_id):
-    post_to_delete = Post.query.get_or_404(post_id)
-
-    if post_to_delete.author != current_user:
-        abort(403)
-
-    try:
-        # [수정] 연결된 모든 PostImage 파일을 찾아서 실제 파일 삭제
-        for image in post_to_delete.images:
-            image_path = os.path.join(app.config['UPLOAD_FOLDER'], image.filename)
-            if os.path.exists(image_path):
-                os.remove(image_path)
-
-        # DB 삭제 (cascade 설정 덕분에 PostImage 테이블 데이터는 자동 삭제됨)
-        db.session.delete(post_to_delete)
-        db.session.commit()
-
-        flash('게시물이 성공적으로 삭제되었습니다.')
-
-    except Exception as e:
-        db.session.rollback()
-        flash(f'삭제 중 오류가 발생했습니다: {e}')
-
-    return redirect(url_for('profile', username=current_user.username))
-
-# app.py의 delete_post 함수 아래에 추가하세요.
-
-@app.route('/post/<int:post_id>/edit', methods=['GET', 'POST'])
-@login_required
-def edit_post(post_id):
-    post = Post.query.get_or_404(post_id)
-
-    # 1. 작성자 본인인지 확인
-    if post.author != current_user:
-        abort(403)
-
-    if request.method == 'POST':
-        # 2. 캡션 수정
-        post.caption = request.form.get('caption')
-
-        # 3. 기존 사진 삭제 처리 (체크박스로 선택된 사진들)
-        delete_image_ids = request.form.getlist('delete_images')
-        for img_id in delete_image_ids:
-            img = PostImage.query.get(int(img_id))
-            if img and img.post_id == post.id:
-                # 실제 파일 삭제
-                img_path = os.path.join(app.config['UPLOAD_FOLDER'], img.filename)
-                if os.path.exists(img_path):
-                    os.remove(img_path)
-                # DB 데이터 삭제
-                db.session.delete(img)
-
-        # 4. 새로운 사진 추가 처리 (업로드 로직과 동일)
-        new_files = request.files.getlist('photo')
-        for file in new_files:
-            if file and allowed_file(file.filename):
-                # 이미지 최적화(Pillow)를 적용했다면 그 로직을 여기에도 넣는 것이 좋습니다.
-                filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{secure_filename(file.filename)}"
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(filepath)
-
-                new_image = PostImage(filename=filename, post=post)
-                db.session.add(new_image)
+        # 연결된 목표의 주간 달성 여부 체크 (이번 인증으로 목표 횟수를 채웠는지)
+        if goal_id:
+            linked_goal = Goal.query.get(goal_id)
+            if linked_goal:
+                db.session.flush()
+                done, target, _ = linked_goal.progress_this_week()
+                if done >= target:
+                    # 이번 주 처음으로 달성했을 때만 (이미 activity가 있으면 skip)
+                    from sqlalchemy import func
+                    start_utc, end_utc = week_range_kst()
+                    already = CrewActivity.query.filter(
+                        CrewActivity.crew_id == crew.id,
+                        CrewActivity.user_id == current_user.id,
+                        CrewActivity.event_type == 'goal_completed',
+                        CrewActivity.created_at >= start_utc,
+                        CrewActivity.created_at < end_utc,
+                    ).first()
+                    if not already:
+                        record_activity(crew.id, current_user.id, 'goal_completed',
+                                        goal_title=linked_goal.title, done=done, target=target)
 
         db.session.commit()
-        flash('게시물이 수정되었습니다.')
-        return redirect(url_for('profile', username=current_user.username))
+        flash('운동 인증 완료! 🔥')
+        return redirect(url_for('crew_detail', crew_id=crew.id))
 
-    return render_template('edit_post.html', post=post)
+    goals_data = []
+    for g in my_goals:
+        done, freq, pct = g.progress_this_week()
+        goals_data.append({
+            'id': g.id,
+            'title': g.title,
+            'category': g.category,
+            'frequency_per_week': g.frequency_per_week,
+            'done': done,
+            'freq': freq,
+            'pct': pct,
+        })
+    return render_template('create_log.html', crew=crew, my_goals=my_goals, goals_data=goals_data)
 
-@app.route('/like/<int:post_id>', methods=['POST'])
+
+@app.route('/log/<int:log_id>/like', methods=['POST'])
 @login_required
-def like_toggle(post_id):
-    """좋아요 토글 (누르면 좋아요, 다시 누르면 취소)"""
-    post = Post.query.get_or_404(post_id)
+def toggle_like(log_id):
+    log = WorkoutLog.query.get_or_404(log_id)
+    existing = WorkoutLike.query.filter_by(log_id=log.id, user_id=current_user.id).first()
+    if existing:
+        db.session.delete(existing)
+        liked = False
+    else:
+        db.session.add(WorkoutLike(log_id=log.id, user_id=current_user.id))
+        liked = True
+    db.session.commit()
+    count = WorkoutLike.query.filter_by(log_id=log.id).count()
+    return jsonify({'liked': liked, 'count': count})
 
-    # 이미 좋아요를 눌렀는지 확인
-    existing_like = Like.query.filter(
-        Like.user_id == current_user.id,
-        Like.post_id == post.id
+
+@app.route('/log/<int:log_id>/delete', methods=['POST'])
+@login_required
+def delete_log(log_id):
+    log = WorkoutLog.query.get_or_404(log_id)
+    if log.user_id != current_user.id:
+        abort(403)
+    crew_id = log.crew_id
+    for image in log.images:
+        path = os.path.join(app.config['UPLOAD_FOLDER'], image.filename)
+        if os.path.exists(path):
+            os.remove(path)
+    db.session.delete(log)
+    db.session.commit()
+    flash('인증 기록을 삭제했습니다.')
+    return redirect(url_for('crew_detail', crew_id=crew_id))
+
+
+# =====================================================================
+# 7. 웹 - 독촉(Nudge) & 알림
+# =====================================================================
+
+NUDGE_COOLDOWN_MINUTES = 5
+
+@app.route('/crew/<int:crew_id>/nudge/<int:target_user_id>', methods=['POST'])
+@login_required
+def nudge(crew_id, target_user_id):
+    crew = Crew.query.get_or_404(crew_id)
+    if not current_user.is_member_of(crew):
+        abort(403)
+    target = User.query.get_or_404(target_user_id)
+    if not target.is_member_of(crew):
+        abort(404)
+
+    cooldown_since = datetime.utcnow() - timedelta(minutes=NUDGE_COOLDOWN_MINUTES)
+    recent = Notification.query.filter(
+        Notification.recipient_id == target.id,
+        Notification.sender_id == current_user.id,
+        Notification.crew_id == crew.id,
+        Notification.type == 'nudge',
+        Notification.created_at >= cooldown_since,
     ).first()
 
-    try:
-        if existing_like:
-            # 이미 눌렀다면 -> '좋아요' 취소 (DB에서 삭제)
-            db.session.delete(existing_like)
-            db.session.commit()
-        else:
-            # 처음 누른다면 -> '좋아요' (DB에 추가)
-            new_like = Like(author=current_user, post=post)
-            db.session.add(new_like)
-            db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        flash(f"오류가 발생했습니다: {e}")
+    if recent:
+        flash(f'독촉은 {NUDGE_COOLDOWN_MINUTES}분에 한 번만 보낼 수 있어요.')
+        return redirect(url_for('crew_detail', crew_id=crew.id))
 
-    # (수정) 'index' 대신 'request.referrer'를 사용해 직전 페이지로 리다이렉트
-    return redirect(request.referrer or url_for('index'))
+    push_notification(
+        target.id,
+        f'{current_user.nickname}님이 "{crew.name}"에서 운동하라고 콕! 찔렀어요 👉',
+        sender_id=current_user.id, crew_id=crew.id, n_type='nudge',
+    )
+    db.session.commit()
+    flash(f'{target.nickname}님에게 독촉 알림을 보냈어요!')
+    return redirect(url_for('crew_detail', crew_id=crew.id))
 
 
-@app.route('/comment/<int:post_id>', methods=['POST'])
+@app.route('/notifications')
 @login_required
-def add_comment(post_id):
-    """댓글 달기"""
-    post = Post.query.get_or_404(post_id)
-    comment_text = request.form.get('comment_text') # 템플릿 form의 name과 일치
+def notifications():
+    notis = Notification.query.filter_by(recipient_id=current_user.id)\
+        .order_by(Notification.created_at.desc()).limit(50).all()
+    Notification.query.filter_by(recipient_id=current_user.id, is_read=False)\
+        .update({'is_read': True})
+    db.session.commit()
+    return render_template('notifications.html', notifications=notis)
 
-    if not comment_text:
-        flash("댓글 내용이 없습니다.")
-        return redirect(request.referrer or url_for('index'))
 
-    try:
-        new_comment = Comment(text=comment_text, author=current_user, post=post)
-        db.session.add(new_comment)
+@app.route('/notifications/popup')
+@login_required
+def notifications_popup():
+    """네브바 팝업용 JSON — 최근 20개 + 읽음 처리"""
+    notis = Notification.query.filter_by(recipient_id=current_user.id)\
+        .order_by(Notification.created_at.desc()).limit(20).all()
+    data = [n.to_dict() for n in notis]
+    Notification.query.filter_by(recipient_id=current_user.id, is_read=False)\
+        .update({'is_read': True})
+    db.session.commit()
+    return jsonify(data)
+
+
+@app.route('/notifications/unread-count')
+@login_required
+def notifications_unread_count():
+    count = Notification.query.filter_by(recipient_id=current_user.id, is_read=False).count()
+    return jsonify({'count': count})
+
+
+# =====================================================================
+# 8. 안드로이드용 REST JSON API  (토큰 인증)
+# =====================================================================
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.headers.get('Authorization', '')
+        token = auth.replace('Bearer ', '').strip()
+        if not token:
+            return jsonify({'error': 'token required'}), 401
+        user = User.query.filter_by(api_token=token).first()
+        if not user:
+            return jsonify({'error': 'invalid token'}), 401
+        request.api_user = user
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route('/api/signup', methods=['POST'])
+def api_signup():
+    data = request.get_json(force=True)
+    username = data.get('username')
+    nickname = data.get('nickname')
+    password = data.get('password')
+    if not all([username, nickname, password]):
+        return jsonify({'error': 'username, nickname, password required'}), 400
+    if User.query.filter_by(username=username).first():
+        return jsonify({'error': 'username already exists'}), 409
+
+    user = User(username=username, nickname=nickname)
+    user.set_password(password)
+    user.generate_token()
+    db.session.add(user)
+    db.session.commit()
+    return jsonify({'token': user.api_token, 'user': user.to_dict()}), 201
+
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    data = request.get_json(force=True)
+    user = User.query.filter_by(username=data.get('username')).first()
+    if not user or not user.check_password(data.get('password', '')):
+        return jsonify({'error': 'invalid credentials'}), 401
+    if not user.api_token:
+        user.generate_token()
         db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        flash(f"댓글 작성 중 오류가 발생했습니다: {e}")
+    return jsonify({'token': user.api_token, 'user': user.to_dict()})
 
-    return redirect(request.referrer or url_for('index'))
 
-# --- 5. 앱 실행 ---
+@app.route('/api/me')
+@token_required
+def api_me():
+    return jsonify(request.api_user.to_dict())
+
+
+@app.route('/api/crews', methods=['GET', 'POST'])
+@token_required
+def api_crews():
+    user = request.api_user
+    if request.method == 'POST':
+        data = request.get_json(force=True)
+        if not data.get('name'):
+            return jsonify({'error': 'name required'}), 400
+        crew = Crew(name=data['name'], description=data.get('description', ''),
+                    owner_id=user.id, invite_code=Crew.generate_invite_code())
+        db.session.add(crew)
+        db.session.flush()
+        db.session.add(CrewMembership(user_id=user.id, crew_id=crew.id, role='owner'))
+        db.session.commit()
+        return jsonify(crew.to_dict()), 201
+
+    return jsonify([c.to_dict() for c in user.crews])
+
+
+@app.route('/api/crews/join', methods=['POST'])
+@token_required
+def api_join_crew():
+    user = request.api_user
+    data = request.get_json(force=True)
+    crew = Crew.query.filter_by(invite_code=data.get('invite_code', '').strip()).first()
+    if not crew:
+        return jsonify({'error': 'invalid invite code'}), 404
+    if user.is_member_of(crew):
+        return jsonify({'error': 'already a member'}), 409
+    db.session.add(CrewMembership(user_id=user.id, crew_id=crew.id, role='member'))
+    for m in crew.memberships:
+        if m.user_id != user.id:
+            push_notification(m.user_id, f'{user.nickname}님이 "{crew.name}" 크루에 합류했어요!',
+                              sender_id=user.id, crew_id=crew.id, n_type='join')
+    db.session.commit()
+    return jsonify(crew.to_dict())
+
+
+@app.route('/api/crews/<int:crew_id>')
+@token_required
+def api_crew_detail(crew_id):
+    user = request.api_user
+    crew = Crew.query.get_or_404(crew_id)
+    if not user.is_member_of(crew):
+        return jsonify({'error': 'forbidden'}), 403
+
+    members = []
+    for m in crew.memberships:
+        goals = Goal.query.filter_by(user_id=m.user_id, crew_id=crew.id).all()
+        percents = [g.progress_this_week()[2] for g in goals] or [0]
+        members.append({
+            'user': m.user.to_dict(),
+            'role': m.role,
+            'avg_percent': round(sum(percents) / len(percents)),
+            'goals': [g.to_dict() for g in goals],
+        })
+    return jsonify({
+        'crew': crew.to_dict(),
+        'members': members,
+    })
+
+
+@app.route('/api/crews/<int:crew_id>/goals', methods=['GET', 'POST'])
+@token_required
+def api_goals(crew_id):
+    user = request.api_user
+    crew = Crew.query.get_or_404(crew_id)
+    if not user.is_member_of(crew):
+        return jsonify({'error': 'forbidden'}), 403
+
+    if request.method == 'POST':
+        data = request.get_json(force=True)
+        if not data.get('title'):
+            return jsonify({'error': 'title required'}), 400
+        goal = Goal(user_id=user.id, crew_id=crew.id, title=data['title'],
+                    frequency_per_week=int(data.get('frequency_per_week', 3)),
+                    status='pending')
+        db.session.add(goal)
+        db.session.flush()
+        goal.refresh_status()
+        for m in crew.memberships:
+            if m.user_id != user.id:
+                push_notification(m.user_id,
+                                  f'{user.nickname}님의 목표 "{goal.title}"에 동의해주세요.',
+                                  sender_id=user.id, crew_id=crew.id, n_type='goal_request')
+        db.session.commit()
+        return jsonify(goal.to_dict()), 201
+
+    goals = Goal.query.filter_by(crew_id=crew.id).all()
+    return jsonify([g.to_dict() for g in goals])
+
+
+@app.route('/api/goals/<int:goal_id>/approve', methods=['POST'])
+@token_required
+def api_approve_goal(goal_id):
+    user = request.api_user
+    goal = Goal.query.get_or_404(goal_id)
+    if not user.is_member_of(goal.crew) or goal.user_id == user.id:
+        return jsonify({'error': 'forbidden'}), 403
+    if not goal.approvals.filter_by(approver_id=user.id).first():
+        db.session.add(GoalApproval(goal_id=goal.id, approver_id=user.id, approved=True))
+        db.session.flush()
+        prev = goal.status
+        goal.refresh_status()
+        if goal.status == 'approved' and prev != 'approved':
+            push_notification(goal.user_id, f'목표 "{goal.title}"가 모든 팀원의 동의를 받았어요!',
+                              crew_id=goal.crew_id, n_type='goal_approved')
+        db.session.commit()
+    return jsonify(goal.to_dict())
+
+
+@app.route('/api/crews/<int:crew_id>/logs', methods=['GET', 'POST'])
+@token_required
+def api_logs(crew_id):
+    user = request.api_user
+    crew = Crew.query.get_or_404(crew_id)
+    if not user.is_member_of(crew):
+        return jsonify({'error': 'forbidden'}), 403
+
+    if request.method == 'POST':
+        # multipart/form-data: photo 파일들 + 텍스트 필드
+        files = request.files.getlist('photo')
+        log = WorkoutLog(user_id=user.id, crew_id=crew.id,
+                         goal_id=request.form.get('goal_id', type=int) or None,
+                         workout_type=request.form.get('workout_type'),
+                         caption=request.form.get('caption'))
+        db.session.add(log)
+        db.session.flush()
+        for file in files:
+            if file and allowed_file(file.filename):
+                db.session.add(WorkoutImage(filename=save_optimized_image(file), log=log))
+        db.session.commit()
+        return jsonify(log.to_dict()), 201
+
+    logs = crew.workout_logs.order_by(WorkoutLog.timestamp.desc()).limit(50).all()
+    return jsonify([l.to_dict() for l in logs])
+
+
+@app.route('/api/crews/<int:crew_id>/nudge/<int:target_user_id>', methods=['POST'])
+@token_required
+def api_nudge(crew_id, target_user_id):
+    user = request.api_user
+    crew = Crew.query.get_or_404(crew_id)
+    if not user.is_member_of(crew):
+        return jsonify({'error': 'forbidden'}), 403
+    target = User.query.get_or_404(target_user_id)
+    if not target.is_member_of(crew):
+        return jsonify({'error': 'target not in crew'}), 404
+    push_notification(target.id,
+                      f'{user.nickname}님이 "{crew.name}"에서 운동하라고 콕! 찔렀어요 👉',
+                      sender_id=user.id, crew_id=crew.id, n_type='nudge')
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/notifications', methods=['GET'])
+@token_required
+def api_notifications():
+    user = request.api_user
+    notis = Notification.query.filter_by(recipient_id=user.id)\
+        .order_by(Notification.created_at.desc()).limit(50).all()
+    return jsonify([n.to_dict() for n in notis])
+
+
+@app.route('/api/notifications/read', methods=['POST'])
+@token_required
+def api_read_notifications():
+    user = request.api_user
+    Notification.query.filter_by(recipient_id=user.id, is_read=False)\
+        .update({'is_read': True})
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+# --- 9. 앱 실행 ---
 if __name__ == '__main__':
-    # 앱 실행 전에 데이터베이스 생성
     with app.app_context():
         db.create_all()
-        # 업로드 폴더가 없으면 생성
         if not os.path.exists(UPLOAD_FOLDER):
             os.makedirs(UPLOAD_FOLDER)
-    app.run(host='0.0.0.0', debug=True)
+    app.run(host='0.0.0.0', debug=True, port=3030)
