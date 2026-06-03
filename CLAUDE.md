@@ -98,7 +98,29 @@ WorkoutLike
 ```bash
 # 로컬 빌드 테스트
 docker build -t wogether .
-docker run -p 8000:8000 -e SECRET_KEY=changeme wogether
+
+# 실행 (MariaDB는 별도 컨테이너로 service-net에 띄워야 함)
+docker run -d \
+  --network service-net \
+  -p 8000:8000 \
+  -v /host/uploads:/app/static/uploads \
+  -e SECRET_KEY=실제키 \
+  -e DB_HOST=mariadb \
+  -e DB_PORT=3306 \
+  -e DB_USER=wogether \
+  -e DB_PASSWORD=비밀번호 \
+  -e DB_NAME=wogether \
+  ghcr.io/dduneon/wogether:main
 ```
+
+**DB 환경변수:**
+
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `DB_HOST` | `localhost` | MariaDB 호스트 |
+| `DB_PORT` | `3306` | MariaDB 포트 |
+| `DB_USER` | `wogether` | DB 유저 |
+| `DB_PASSWORD` | `` | DB 비밀번호 |
+| `DB_NAME` | `wogether` | DB 이름 |
 
 GitHub Actions(`/.github/workflows/docker-publish.yml`)가 `main` 브랜치 push 또는 `v*.*.*` 태그 시 `ghcr.io/dduneon/wogether`로 자동 빌드·푸시.

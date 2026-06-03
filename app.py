@@ -26,7 +26,16 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'wogether_dev_secret_change_in_prod')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(BASE_DIR, 'wogether.db')
+def _db_uri():
+    host = os.environ.get('DB_HOST', 'localhost')
+    port = os.environ.get('DB_PORT', '3306')
+    user = os.environ.get('DB_USER', 'wogether')
+    password = os.environ.get('DB_PASSWORD', '')
+    name = os.environ.get('DB_NAME', 'wogether')
+    return f'mysql+pymysql://{user}:{password}@{host}:{port}/{name}?charset=utf8mb4'
+
+app.config['SQLALCHEMY_DATABASE_URI'] = _db_uri()
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_recycle': 280, 'pool_pre_ping': True}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 
