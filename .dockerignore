@@ -1,0 +1,12 @@
+.git
+.claude
+.venv
+.vevn
+__pycache__
+*.pyc
+*.pyo
+backend/
+frontend/
+wogether.db
+static/uploads/
+*.md
