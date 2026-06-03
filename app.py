@@ -43,6 +43,9 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
 app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=365)
 
 db = SQLAlchemy(app)
+
+with app.app_context():
+    db.create_all()
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = "로그인이 필요합니다."
