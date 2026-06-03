@@ -4,58 +4,101 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Wogether (워게더)** — a workout accountability app where users form crews, set weekly goals, post workout logs (with photos), and nudge each other to stay on track.
+**Wogether (워게더)** — 크루를 만들고, 주간 운동 목표를 설정하고, 인증 사진을 올리며 서로 독촉하는 운동 책임 앱.
 
-The app name in the codebase/DB is "wogether" (database: `wogether.db`), but the repo folder is `owoonstagram`.
+레포 폴더명은 `owoonstagram`이지만 앱/DB명은 `wogether` (`wogether.db`).
 
 ## Running the App
 
 ```bash
+# 웹 앱 (Flask + Jinja2 템플릿, 현재 서비스 중인 버전)
 source .venv/bin/activate
-python app.py          # starts on http://0.0.0.0:3030 with debug=True
-```
+python app.py          # http://0.0.0.0:3030, debug=True
 
-For production:
-```bash
+# 프로덕션
 gunicorn app:app
+
+# React 프론트엔드 개발 서버 (backend/ API와 연동)
+cd frontend && npm install && npm run dev
+
+# React 빌드
+cd frontend && npm run build
 ```
 
-The SQLite DB (`wogether.db`) and upload folder (`static/uploads/`) are created automatically on first run.
+SQLite DB(`wogether.db`)와 업로드 폴더(`static/uploads/`)는 첫 실행 시 자동 생성.
 
 ## Architecture
 
-Everything lives in a single file: [`app.py`](app.py). There is no blueprint or package structure.
+코드베이스에 **두 가지 서버 구현이 공존**한다:
 
-**Sections (marked with comments):**
-1. App config — Flask, SQLAlchemy, upload settings, KST timezone helpers
-2. DB models — all SQLAlchemy models defined here
-3. Web auth routes — `/signup`, `/login`, `/logout`
-4. Web crew routes — `/`, `/crew/create`, `/join/<code>`, `/crew/<id>`, etc.
-5. Web goal routes — goal creation, approval, deletion
-6. Web workout log routes — photo upload + log creation
-7. Web nudge/notification routes
-8. Android REST API — token-authenticated JSON API mirroring the web routes under `/api/`
+| | 경로 | 상태 |
+|---|---|---|
+| **웹 앱** | `app.py` (단일 파일) | 현재 운영 중 |
+| **API 서버** (리팩토링 중) | `backend/` 패키지 | WIP — `app.py`의 API 부분을 Blueprint로 분리한 것 |
+| **React SPA** | `frontend/` | WIP — `backend/`의 `/api/` 엔드포인트 소비 |
 
-**Two auth systems run in parallel:**
-- Web: Flask-Login session-based (`@login_required`)
-- API: Bearer token via `User.api_token` (`@token_required` decorator, sets `request.api_user`)
+### app.py 구조 (섹션별 주석으로 구분)
+
+1. **앱 설정** — Flask, SQLAlchemy, 업로드 설정, KST 타임존 헬퍼
+2. **DB 모델** — 모든 SQLAlchemy 모델
+3. **웹 인증 라우트** — `/signup`, `/login`, `/logout`
+4. **웹 크루 라우트** — `/`, `/crew/create`, `/join/<code>`, `/crew/<id>`
+5. **웹 목표 라우트** — 목표 생성·승인·삭제
+6. **웹 운동 인증 라우트** — 사진 업로드 + 인증 등록
+7. **웹 독촉·알림 라우트**
+8. **Android REST API** — `/api/` 하위, 토큰 인증
+
+### 두 가지 인증 시스템이 병렬로 동작
+
+- **웹:** Flask-Login 세션 기반 (`@login_required`)
+- **API:** `User.api_token` Bearer 토큰 (`@token_required` 데코레이터, `request.api_user` 설정)
+
+### backend/ 패키지 구조
+
+```
+backend/
+  app.py          # create_app() 팩토리
+  config.py
+  extensions.py   # db, login_manager 인스턴스
+  helpers.py
+  models/__init__.py
+  routes/api/     # auth, crews, goals, logs, notifications Blueprint
+```
+
+### frontend/ 구조
+
+React + Vite SPA. `src/api/client.js`는 axios 기반으로 `/api/` 호출, localStorage의 Bearer 토큰으로 인증. 401 시 자동 로그아웃.
 
 ## Data Model
 
 ```
 User ──< CrewMembership >── Crew
-User ──< Goal (per crew, weekly frequency)
-         Goal ──< GoalApproval (crew members vote to approve goals)
-User ──< WorkoutLog (per crew, optionally linked to a Goal)
-         WorkoutLog ──< WorkoutImage (stored as WebP in static/uploads/)
+User ──< Goal (크루별, 주간 횟수)
+         Goal ──< GoalApproval (팀원 투표로 승인)
+User ──< WorkoutLog (크루별, Goal에 선택적 연결)
+         WorkoutLog ──< WorkoutImage (WebP로 static/uploads/ 저장)
 Notification (nudge | goal_request | goal_approved | join)
+CrewActivity  (피드용 이벤트 로그)
+WorkoutLike
 ```
 
-**Goal approval flow:** New goals start as `pending`. Each non-owner crew member must approve. `Goal.refresh_status()` flips to `approved` when all have voted (or immediately for 1-member crews).
+**목표 승인 흐름:** 새 목표는 `pending` 상태. 소유자 외 모든 팀원이 승인해야 `approved`로 전환. `Goal.refresh_status()`가 처리. 1인 크루는 즉시 자동 승인.
+
+**운동 인증 → 목표 진행률:** `Goal.progress_this_week()`이 이번 주 KST 기준 해당 목표에 연결된 WorkoutLog 수를 카운트.
 
 ## Key Conventions
 
-- All timestamps stored as UTC in the DB; KST (UTC+9) used for display and weekly progress calculations. Use `kst_now()` and `week_range_kst()` helpers.
-- Images are resized to max 1080×1080 and saved as WebP at 80% quality via `save_optimized_image()`.
-- Flash messages and UI text are in Korean.
-- `SECRET_KEY` should be set via environment variable in production (defaults to a dev value).
+- **타임존:** DB에 UTC로 저장, 표시·주간 계산은 KST(UTC+9). `kst_now()`, `week_range_kst()` 헬퍼 사용.
+- **이미지:** `save_optimized_image()`로 최대 1080×1080, WebP 80% 품질 저장.
+- **UI 텍스트·플래시 메시지:** 한국어.
+- **환경변수:** `SECRET_KEY` (기본값은 dev용, 프로덕션에서 반드시 변경).
+
+## Docker / CI
+
+```bash
+# 로컬 빌드 테스트
+docker build -t wogether .
+docker run -p 8000:8000 -e SECRET_KEY=changeme wogether
+```
+
+GitHub Actions(`/.github/workflows/docker-publish.yml`)가 `main` 브랜치 push 또는 `v*.*.*` 태그 시 `ghcr.io/dduneon/wogether`로 자동 빌드·푸시.
