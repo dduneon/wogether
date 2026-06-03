@@ -11,6 +11,6 @@ COPY templates/ templates/
 
 RUN mkdir -p static/uploads
 
-EXPOSE 8000
+EXPOSE 4010
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "60", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:4010", "--workers", "2", "--timeout", "60", "app:app"]

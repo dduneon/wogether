@@ -102,7 +102,7 @@ docker build -t wogether .
 # 실행 (MariaDB는 별도 컨테이너로 service-net에 띄워야 함)
 docker run -d \
   --network service-net \
-  -p 8000:8000 \
+  -p 4010:4010 \
   -v /host/uploads:/app/static/uploads \
   -e SECRET_KEY=실제키 \
   -e DB_HOST=mariadb \
