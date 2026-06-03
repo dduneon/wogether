@@ -13,6 +13,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func
 from PIL import Image
+from io import BytesIO
+from minio import Minio
+from minio.error import S3Error
 
 # =====================================================================
 # Wogether (워게더) - 친구들과 크루를 맺고, 목표를 세우고, 운동을 인증하고,
@@ -42,10 +45,28 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
 app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=365)
 
+MINIO_ENDPOINT  = os.environ.get('MINIO_ENDPOINT', 'minio:9000')
+MINIO_ACCESS_KEY = os.environ.get('MINIO_ACCESS_KEY', 'admin')
+MINIO_SECRET_KEY = os.environ.get('MINIO_SECRET_KEY', 'password')
+MINIO_BUCKET    = os.environ.get('MINIO_BUCKET', 'wogether')
+MINIO_PUBLIC_URL = os.environ.get('MINIO_PUBLIC_URL', f'http://{MINIO_ENDPOINT}')
+
+minio_client = Minio(
+    MINIO_ENDPOINT,
+    access_key=MINIO_ACCESS_KEY,
+    secret_key=MINIO_SECRET_KEY,
+    secure=os.environ.get('MINIO_SECURE', 'false').lower() == 'true',
+)
+
+def _ensure_bucket():
+    if not minio_client.bucket_exists(MINIO_BUCKET):
+        minio_client.make_bucket(MINIO_BUCKET)
+
 db = SQLAlchemy(app)
 
 with app.app_context():
     db.create_all()
+    _ensure_bucket()
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = "로그인이 필요합니다."
@@ -328,7 +349,7 @@ class WorkoutImage(db.Model):
 
     @property
     def image_url(self):
-        return url_for('static', filename=f'uploads/{self.filename}')
+        return f'{MINIO_PUBLIC_URL}/{MINIO_BUCKET}/{self.filename}'
 
 
 class WorkoutLike(db.Model):
@@ -413,15 +434,21 @@ def allowed_file(filename):
 
 
 def save_optimized_image(file):
-    """업로드 이미지를 WebP로 최적화 저장하고 파일명 반환"""
+    """업로드 이미지를 WebP로 최적화해 MinIO에 저장하고 파일명 반환"""
     base = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{secure_filename(file.filename)}"
     img = Image.open(file)
     img.thumbnail((1080, 1080))
     if img.mode != 'RGB':
         img = img.convert('RGB')
     filename = base.rsplit('.', 1)[0] + '.webp'
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    img.save(filepath, 'WEBP', quality=80)
+    buf = BytesIO()
+    img.save(buf, 'WEBP', quality=80)
+    buf.seek(0)
+    _ensure_bucket()
+    minio_client.put_object(
+        MINIO_BUCKET, filename, buf, length=buf.getbuffer().nbytes,
+        content_type='image/webp',
+    )
     return filename
 
 
@@ -861,9 +888,10 @@ def delete_log(log_id):
         abort(403)
     crew_id = log.crew_id
     for image in log.images:
-        path = os.path.join(app.config['UPLOAD_FOLDER'], image.filename)
-        if os.path.exists(path):
-            os.remove(path)
+        try:
+            minio_client.remove_object(MINIO_BUCKET, image.filename)
+        except S3Error:
+            pass
     db.session.delete(log)
     db.session.commit()
     flash('인증 기록을 삭제했습니다.')

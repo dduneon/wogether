@@ -103,13 +103,17 @@ docker build -t wogether .
 docker run -d \
   --network service-net \
   -p 4010:4010 \
-  -v /host/uploads:/app/static/uploads \
   -e SECRET_KEY=실제키 \
   -e DB_HOST=mariadb \
   -e DB_PORT=3306 \
   -e DB_USER=wogether \
   -e DB_PASSWORD=비밀번호 \
   -e DB_NAME=wogether \
+  -e MINIO_ENDPOINT=minio:9000 \
+  -e MINIO_ACCESS_KEY=admin \
+  -e MINIO_SECRET_KEY=비밀번호 \
+  -e MINIO_BUCKET=wogether \
+  -e MINIO_PUBLIC_URL=http://서버IP:9000 \
   ghcr.io/dduneon/wogether:main
 ```
 
@@ -122,5 +126,14 @@ docker run -d \
 | `DB_USER` | `wogether` | DB 유저 |
 | `DB_PASSWORD` | `` | DB 비밀번호 |
 | `DB_NAME` | `wogether` | DB 이름 |
+
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `MINIO_ENDPOINT` | `minio:9000` | MinIO 호스트:포트 |
+| `MINIO_ACCESS_KEY` | `admin` | MinIO 액세스 키 |
+| `MINIO_SECRET_KEY` | `password` | MinIO 시크릿 키 |
+| `MINIO_BUCKET` | `wogether` | 버킷 이름 (없으면 자동 생성) |
+| `MINIO_PUBLIC_URL` | `http://minio:9000` | 이미지 서빙 베이스 URL |
+| `MINIO_SECURE` | `false` | HTTPS 사용 여부 |
 
 GitHub Actions(`/.github/workflows/docker-publish.yml`)가 `main` 브랜치 push 또는 `v*.*.*` 태그 시 `ghcr.io/dduneon/wogether`로 자동 빌드·푸시.
