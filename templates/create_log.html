@@ -1,0 +1,158 @@
+{% extends "layout.html" %}
+{% block title %}운동 인증 — Wogether{% endblock %}
+{% block content %}
+<div class="composer-wrap">
+  <div class="composer-box fade-up">
+    <div class="page-eyebrow">{{ crew.name }}</div>
+    <div class="heading" style="margin-bottom:20px">새 게시물 📸</div>
+
+    <form method="POST" enctype="multipart/form-data" id="composer-form">
+      <!-- 사진 업로드 영역 -->
+      <div class="composer-photo-area" id="photo-area" onclick="document.getElementById('photo-input').click()">
+        <div id="photo-placeholder">
+          <div class="composer-photo-icon">🖼</div>
+          <div class="composer-photo-hint">여기를 눌러 사진 추가<br><span>JPG, PNG, WebP — 최대 여러 장</span></div>
+        </div>
+        <div class="composer-preview-grid" id="preview-grid" style="display:none"></div>
+        <input type="file" id="photo-input" name="photo" accept="image/*" multiple required
+               style="display:none" onchange="handlePhotos(this)">
+      </div>
+
+      {% if my_goals %}
+      <!-- 연결 목표 -->
+      <div style="margin-top:16px">
+        <label class="form-label" style="font-size:.82rem;opacity:.7;margin-bottom:6px;display:block">연결할 목표</label>
+        <select name="goal_id" id="goal-select"
+          style="width:100%;padding:10px 14px;background:var(--bg-3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;font-size:.9rem;outline:none">
+          <option value="">🎯 목표 연결 안 함</option>
+          {% for g in my_goals %}
+          <option value="{{ g.id }}"
+            data-category="{{ g.category }}"
+            data-title="{{ g.title }}"
+            data-done="{{ goals_data[loop.index0].done }}"
+            data-freq="{{ g.frequency_per_week }}">
+            {{ g.category }} · {{ g.title }} — 주 {{ g.frequency_per_week }}회
+          </option>
+          {% endfor %}
+        </select>
+
+        <!-- 선택된 목표 정보 카드 -->
+        <div id="goal-info" style="display:none;margin-top:10px;padding:12px 14px;background:var(--bg-3);border:1px solid var(--border);border-radius:var(--radius-sm)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span id="goal-category-badge"
+              style="font-size:.78rem;padding:3px 9px;border-radius:20px;background:rgba(0,229,255,.12);color:#00e5ff;border:1px solid rgba(0,229,255,.25)"></span>
+            <span id="goal-title-text" style="font-size:.88rem;font-weight:600"></span>
+          </div>
+          <div style="font-size:.78rem;opacity:.6;margin-bottom:6px">이번 주 진행률</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="flex:1;height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden">
+              <div id="goal-progress-bar" style="height:100%;background:#00e5ff;border-radius:3px;transition:width .3s"></div>
+            </div>
+            <span id="goal-progress-text" style="font-size:.82rem;font-weight:700;color:#00e5ff;white-space:nowrap"></span>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 캡션 + 운동 종류 -->
+      <div style="margin-top:14px;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:16px">
+        <textarea name="caption" class="composer-caption" placeholder="오늘 운동 어땠나요? 크루에 자랑해보세요 💪" rows="3"></textarea>
+        <div class="composer-meta-row" style="margin-top:12px">
+          <input type="text" name="workout_type" id="workout-type-input"
+                 placeholder="# 운동 종류  (예: 러닝, 헬스, 요가)">
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-full mt-16" style="font-size:1rem;padding:14px">공유하기 🔥</button>
+    </form>
+
+    <a href="{{ url_for('crew_detail', crew_id=crew.id) }}" class="btn btn-ghost btn-full mt-8">← 돌아가기</a>
+  </div>
+</div>
+
+<script>
+const CATEGORY_WORKOUT_MAP = {
+  '런닝·조깅':    '러닝',
+  '헬스·웨이트':  '헬스',
+  '자전거':       '자전거',
+  '수영':         '수영',
+  '요가·필라테스':'요가',
+  '홈트':         '홈트',
+  '구기종목':     '구기종목',
+  '등산·트레킹':  '등산',
+  '기타':         '',
+};
+
+const goalSelect = document.getElementById('goal-select');
+const goalInfo   = document.getElementById('goal-info');
+const wtInput    = document.getElementById('workout-type-input');
+
+let userEditedWorkoutType = false;
+if (wtInput) {
+  wtInput.addEventListener('input', () => { userEditedWorkoutType = true; });
+}
+
+function onGoalChange() {
+  const opt = goalSelect.options[goalSelect.selectedIndex];
+  const goalId = goalSelect.value;
+
+  if (!goalId) {
+    if (goalInfo) goalInfo.style.display = 'none';
+    return;
+  }
+
+  const category = opt.dataset.category || '';
+  const title    = opt.dataset.title    || '';
+  const done     = parseInt(opt.dataset.done)  || 0;
+  const freq     = parseInt(opt.dataset.freq)  || 1;
+  const pct      = Math.min(100, Math.round(done / freq * 100));
+
+  // 진행률 카드 표시
+  if (goalInfo) {
+    document.getElementById('goal-category-badge').textContent = category;
+    document.getElementById('goal-title-text').textContent     = title;
+    document.getElementById('goal-progress-bar').style.width   = pct + '%';
+    document.getElementById('goal-progress-text').textContent  = done + ' / ' + freq + '회';
+    goalInfo.style.display = 'block';
+  }
+
+  // 운동 종류 자동 채우기 (사용자가 직접 입력하지 않은 경우)
+  if (!userEditedWorkoutType && wtInput) {
+    const suggested = CATEGORY_WORKOUT_MAP[category] || category;
+    wtInput.value = suggested;
+    wtInput.placeholder = '# ' + (suggested || '운동 종류') + ' (수정 가능)';
+  }
+}
+
+if (goalSelect) goalSelect.addEventListener('change', onGoalChange);
+
+function handlePhotos(input) {
+  const area = document.getElementById('photo-area');
+  const placeholder = document.getElementById('photo-placeholder');
+  const grid = document.getElementById('preview-grid');
+  const files = Array.from(input.files);
+
+  if (!files.length) {
+    placeholder.style.display = '';
+    grid.style.display = 'none';
+    area.classList.remove('has-preview');
+    return;
+  }
+
+  placeholder.style.display = 'none';
+  grid.style.display = '';
+  area.classList.add('has-preview');
+
+  const cols = files.length === 1 ? 'cols-1' : files.length === 2 ? 'cols-2' : 'cols-3';
+  grid.className = `composer-preview-grid ${cols}`;
+  grid.innerHTML = '';
+
+  files.slice(0, 3).forEach(f => {
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(f);
+    img.alt = '';
+    grid.appendChild(img);
+  });
+}
+</script>
+{% endblock %}
