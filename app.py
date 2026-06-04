@@ -14,7 +14,7 @@ from flask_login import (
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func
-from PIL import Image
+from PIL import Image, ImageOps
 from io import BytesIO
 from minio import Minio
 from minio.error import S3Error
@@ -421,6 +421,51 @@ def record_activity(crew_id, user_id, event_type, **meta):
     return act
 
 
+def _check_and_record_streak(crew_id, user_id):
+    """오늘 포함 연속으로 운동한 날 수를 계산해 2일 이상이면 streak 활동을 기록한다."""
+    kst_today = kst_now().date()
+
+    # 오늘 이미 streak 기록했으면 skip
+    today_start_utc = datetime(kst_today.year, kst_today.month, kst_today.day) - timedelta(hours=9)
+    today_end_utc = today_start_utc + timedelta(days=1)
+    already = CrewActivity.query.filter(
+        CrewActivity.crew_id == crew_id,
+        CrewActivity.user_id == user_id,
+        CrewActivity.event_type == 'streak',
+        CrewActivity.created_at >= today_start_utc,
+        CrewActivity.created_at < today_end_utc,
+    ).first()
+    if already:
+        return
+
+    # 과거 인증 날짜 목록 (KST 기준)
+    logs = WorkoutLog.query.filter(
+        WorkoutLog.crew_id == crew_id,
+        WorkoutLog.user_id == user_id,
+    ).order_by(WorkoutLog.timestamp.desc()).all()
+
+    logged_days = sorted({
+        (log.timestamp + timedelta(hours=9)).date()
+        for log in logs
+    }, reverse=True)
+
+    # 오늘부터 거슬러 올라가며 연속 일수 계산
+    streak = 0
+    check = kst_today
+    for d in logged_days:
+        if d == check:
+            streak += 1
+            check -= timedelta(days=1)
+        elif d < check:
+            break
+
+    if streak >= 2:
+        _STREAK_LABELS = {2: '이틀', 3: '사흘', 4: '나흘', 5: '닷새',
+                          6: '엿새', 7: '일주일'}
+        label = _STREAK_LABELS.get(streak, f'{streak}일')
+        record_activity(crew_id, user_id, 'streak', days=streak, label=label)
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -445,6 +490,7 @@ def save_optimized_image(file):
     """업로드 이미지를 WebP로 최적화해 MinIO에 저장하고 파일명 반환"""
     base = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{secure_filename(file.filename)}"
     img = Image.open(file)
+    img = ImageOps.exif_transpose(img)  # EXIF 회전 정보 적용 후 태그 제거
     img.thumbnail((1080, 1080))
     if img.mode != 'RGB':
         img = img.convert('RGB')
@@ -853,6 +899,9 @@ def create_log(crew_id):
                         record_activity(crew.id, current_user.id, 'goal_completed',
                                         goal_title=linked_goal.title, done=done, target=target)
 
+        # 연속 운동 스트릭 체크
+        _check_and_record_streak(crew.id, current_user.id)
+
         db.session.commit()
         flash('운동 인증 완료! 🔥')
         return redirect(url_for('crew_detail', crew_id=crew.id))
@@ -1227,6 +1276,9 @@ def api_logs(crew_id):
                     if not already:
                         record_activity(crew.id, user.id, 'goal_completed',
                                         goal_title=linked_goal.title, done=done, target=target)
+
+        # 연속 운동 스트릭 체크
+        _check_and_record_streak(crew.id, user.id)
 
         db.session.commit()
         return jsonify(log.to_dict()), 201

@@ -141,7 +141,9 @@
         {% if log.images %}
           {% if log.images|length == 1 %}
           <div class="sns-post-images">
-            <img src="{{ log.images[0].image_url }}" class="sns-post-img" alt="운동 인증">
+            <div class="sns-post-img-wrap">
+              <img src="{{ log.images[0].image_url }}" class="sns-post-img" alt="운동 인증">
+            </div>
           </div>
           {% elif log.images|length == 2 %}
           <div class="sns-multi-img cols-2">
@@ -196,6 +198,9 @@
           {% elif act.event_type == 'goal_completed' %}
           <span class="activity-icon">🏆</span>
           <span><strong>{{ act.user.nickname }}</strong>님이 이번 주 목표 <em>{{ m.goal_title }}</em>을(를) 달성했어요! ({{ m.done }}/{{ m.target }}회)</span>
+          {% elif act.event_type == 'streak' %}
+          <span class="activity-icon">🔥</span>
+          <span><strong>{{ act.user.nickname }}</strong>님이 <strong>{{ m.label }} 연속</strong> 운동했어요!</span>
           {% endif %}
           <div class="activity-time">{{ act.created_at | kst_short }}</div>
         </div>
