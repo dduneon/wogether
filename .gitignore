@@ -215,4 +215,5 @@ __marimo__/
 *.out
 *.bak
 utils/
+!frontend/src/utils/
 static/uploads/
