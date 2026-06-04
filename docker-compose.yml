@@ -1,0 +1,35 @@
+services:
+  backend:
+    image: ghcr.io/dduneon/wogether-backend:latest
+    container_name: wogether-backend
+    restart: unless-stopped
+    networks:
+      - service-net
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      DB_HOST: ${DB_HOST:-mariadb}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-wogether}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-wogether}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-admin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-wogether}
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL}
+      MINIO_SECURE: ${MINIO_SECURE:-false}
+
+  frontend:
+    image: ghcr.io/dduneon/wogether-frontend:latest
+    container_name: wogether-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    networks:
+      - service-net
+    depends_on:
+      - backend
+
+networks:
+  service-net:
+    external: true
