@@ -344,7 +344,7 @@ class WorkoutLog(db.Model):
             'goal_id': self.goal_id,
             'workout_type': self.workout_type,
             'caption': self.caption,
-            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'timestamp': self.timestamp.isoformat() + "Z" if self.timestamp else None,
             'images': [img.image_url for img in self.images],
             'like_count': self.like_count,
         }
@@ -392,7 +392,7 @@ class Notification(db.Model):
             'type': self.type,
             'message': self.message,
             'is_read': self.is_read,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'created_at': self.created_at.isoformat() + "Z" if self.created_at else None,
         }
 
 
@@ -1002,9 +1002,9 @@ def api_signup():
     nickname = data.get('nickname')
     password = data.get('password')
     if not all([username, nickname, password]):
-        return jsonify({'error': 'username, nickname, password required'}), 400
+        return jsonify({'error': '아이디, 닉네임, 비밀번호를 모두 입력해주세요.'}), 400
     if User.query.filter_by(username=username).first():
-        return jsonify({'error': 'username already exists'}), 409
+        return jsonify({'error': '이미 사용 중인 아이디예요.'}), 409
 
     user = User(username=username, nickname=nickname)
     user.set_password(password)
@@ -1019,7 +1019,7 @@ def api_login():
     data = request.get_json(force=True)
     user = User.query.filter_by(username=data.get('username')).first()
     if not user or not user.check_password(data.get('password', '')):
-        return jsonify({'error': 'invalid credentials'}), 401
+        return jsonify({'error': '아이디 또는 비밀번호가 올바르지 않아요.'}), 401
     if not user.api_token:
         user.generate_token()
         db.session.commit()
@@ -1039,7 +1039,7 @@ def api_crews():
     if request.method == 'POST':
         data = request.get_json(force=True)
         if not data.get('name'):
-            return jsonify({'error': 'name required'}), 400
+            return jsonify({'error': '크루 이름을 입력해주세요.'}), 400
         crew = Crew(name=data['name'], description=data.get('description', ''),
                     owner_id=user.id, invite_code=Crew.generate_invite_code())
         db.session.add(crew)
@@ -1058,14 +1058,16 @@ def api_join_crew():
     data = request.get_json(force=True)
     crew = Crew.query.filter_by(invite_code=data.get('invite_code', '').strip()).first()
     if not crew:
-        return jsonify({'error': 'invalid invite code'}), 404
+        return jsonify({'error': '유효하지 않은 초대코드예요.'}), 404
     if user.is_member_of(crew):
-        return jsonify({'error': 'already a member'}), 409
+        return jsonify({'error': '이미 가입된 크루예요.'}), 409
     db.session.add(CrewMembership(user_id=user.id, crew_id=crew.id, role='member'))
+    db.session.flush()
     for m in crew.memberships:
         if m.user_id != user.id:
             push_notification(m.user_id, f'{user.nickname}님이 "{crew.name}" 크루에 합류했어요!',
                               sender_id=user.id, crew_id=crew.id, n_type='join')
+    record_activity(crew.id, user.id, 'join')
     db.session.commit()
     return jsonify(crew.to_dict())
 
@@ -1078,6 +1080,7 @@ def api_crew_detail(crew_id):
     if not user.is_member_of(crew):
         return jsonify({'error': 'forbidden'}), 403
 
+    import json as _json
     members = []
     for m in crew.memberships:
         goals = Goal.query.filter_by(user_id=m.user_id, crew_id=crew.id).all()
@@ -1088,9 +1091,44 @@ def api_crew_detail(crew_id):
             'avg_percent': round(sum(percents) / len(percents)),
             'goals': [g.to_dict() for g in goals],
         })
+
+    # 피드 (인증 + 활동)
+    logs = crew.workout_logs.order_by(WorkoutLog.timestamp.desc()).limit(30).all()
+    activities = CrewActivity.query.filter_by(crew_id=crew.id)\
+        .order_by(CrewActivity.created_at.desc()).limit(30).all()
+
+    feed_items = sorted(
+        [{'type': 'log', 'ts': l.timestamp.isoformat() + "Z", 'data': {
+            **l.to_dict(),
+            'is_liked': l.is_liked_by(user.id),
+        }} for l in logs] +
+        [{'type': 'activity', 'ts': a.created_at.isoformat() + "Z", 'data': {
+            'id': a.id,
+            'event_type': a.event_type,
+            'user': a.user.to_dict(),
+            'meta': _json.loads(a.meta) if a.meta else {},
+            'created_at': a.created_at.isoformat() + 'Z',
+        }} for a in activities],
+        key=lambda x: x['ts'], reverse=True
+    )[:40]
+
+    # 내가 동의해야 할 대기 목표
+    pending_goals = Goal.query.filter(
+        Goal.crew_id == crew.id,
+        Goal.status == 'pending',
+        Goal.user_id != user.id,
+    ).all()
+    pending_for_me = [
+        g.to_dict() | {'user_nickname': g.user.nickname}
+        for g in pending_goals
+        if not g.approvals.filter_by(approver_id=user.id).first()
+    ]
+
     return jsonify({
         'crew': crew.to_dict(),
         'members': members,
+        'feed_items': feed_items,
+        'pending_for_me': pending_for_me,
     })
 
 
@@ -1105,8 +1143,11 @@ def api_goals(crew_id):
     if request.method == 'POST':
         data = request.get_json(force=True)
         if not data.get('title'):
-            return jsonify({'error': 'title required'}), 400
-        goal = Goal(user_id=user.id, crew_id=crew.id, title=data['title'],
+            return jsonify({'error': '목표 이름을 입력해주세요.'}), 400
+        goal = Goal(user_id=user.id, crew_id=crew.id,
+                    title=data['title'],
+                    category=data.get('category', '기타'),
+                    description=data.get('description', ''),
                     frequency_per_week=int(data.get('frequency_per_week', 3)),
                     status='pending')
         db.session.add(goal)
@@ -1117,6 +1158,8 @@ def api_goals(crew_id):
                 push_notification(m.user_id,
                                   f'{user.nickname}님의 목표 "{goal.title}"에 동의해주세요.',
                                   sender_id=user.id, crew_id=crew.id, n_type='goal_request')
+        record_activity(crew.id, user.id, 'goal_added',
+                        goal_title=goal.title, frequency=goal.frequency_per_week)
         db.session.commit()
         return jsonify(goal.to_dict()), 201
 
@@ -1139,6 +1182,8 @@ def api_approve_goal(goal_id):
         if goal.status == 'approved' and prev != 'approved':
             push_notification(goal.user_id, f'목표 "{goal.title}"가 모든 팀원의 동의를 받았어요!',
                               crew_id=goal.crew_id, n_type='goal_approved')
+            record_activity(goal.crew_id, goal.user_id, 'goal_approved',
+                            goal_title=goal.title)
         db.session.commit()
     return jsonify(goal.to_dict())
 
@@ -1163,6 +1208,26 @@ def api_logs(crew_id):
         for file in files:
             if file and allowed_file(file.filename):
                 db.session.add(WorkoutImage(filename=save_optimized_image(file), log=log))
+
+        # 연결된 목표 달성 여부 체크
+        if log.goal_id:
+            linked_goal = Goal.query.get(log.goal_id)
+            if linked_goal:
+                db.session.flush()
+                done, target, _ = linked_goal.progress_this_week()
+                if done >= target:
+                    start_utc, end_utc = week_range_kst()
+                    already = CrewActivity.query.filter(
+                        CrewActivity.crew_id == crew.id,
+                        CrewActivity.user_id == user.id,
+                        CrewActivity.event_type == 'goal_completed',
+                        CrewActivity.created_at >= start_utc,
+                        CrewActivity.created_at < end_utc,
+                    ).first()
+                    if not already:
+                        record_activity(crew.id, user.id, 'goal_completed',
+                                        goal_title=linked_goal.title, done=done, target=target)
+
         db.session.commit()
         return jsonify(log.to_dict()), 201
 
@@ -1179,7 +1244,7 @@ def api_nudge(crew_id, target_user_id):
         return jsonify({'error': 'forbidden'}), 403
     target = User.query.get_or_404(target_user_id)
     if not target.is_member_of(crew):
-        return jsonify({'error': 'target not in crew'}), 404
+        return jsonify({'error': '해당 크루원을 찾을 수 없어요.'}), 404
     push_notification(target.id,
                       f'{user.nickname}님이 "{crew.name}"에서 운동하라고 콕! 찔렀어요 👉',
                       sender_id=user.id, crew_id=crew.id, n_type='nudge')
@@ -1212,6 +1277,68 @@ def api_notifications_unread_count():
     user = request.api_user
     count = Notification.query.filter_by(recipient_id=user.id, is_read=False).count()
     return jsonify({'count': count})
+
+
+@app.route('/api/dashboard', methods=['GET'])
+@token_required
+def api_dashboard():
+    """홈 대시보드 — 주간 요약 + 크루별 진행률"""
+    user = request.api_user
+    crews = user.crews
+    start_utc, end_utc = week_range_kst()
+    unread = Notification.query.filter_by(recipient_id=user.id, is_read=False).count()
+
+    total_logs_this_week = WorkoutLog.query.filter(
+        WorkoutLog.user_id == user.id,
+        WorkoutLog.timestamp >= start_utc,
+        WorkoutLog.timestamp < end_utc,
+    ).count()
+
+    latest_log = WorkoutLog.query.filter_by(user_id=user.id)\
+        .order_by(WorkoutLog.timestamp.desc()).first()
+    quick_crew_id = (latest_log.crew_id if latest_log else (crews[0].id if crews else None))
+
+    crews_data = []
+    for crew in crews:
+        my_goals = Goal.query.filter_by(user_id=user.id, crew_id=crew.id, status='approved').all()
+        if my_goals:
+            percents = [g.progress_this_week()[2] for g in my_goals]
+            my_pct = round(sum(percents) / len(percents))
+        else:
+            my_pct = 0
+
+        crew_logs_count = WorkoutLog.query.filter(
+            WorkoutLog.crew_id == crew.id,
+            WorkoutLog.timestamp >= start_utc,
+            WorkoutLog.timestamp < end_utc,
+        ).count()
+
+        last_log = crew.workout_logs.order_by(WorkoutLog.timestamp.desc()).first()
+
+        pending_goals = Goal.query.filter(
+            Goal.crew_id == crew.id,
+            Goal.status == 'pending',
+            Goal.user_id != user.id,
+        ).all()
+        pending_count = sum(
+            1 for g in pending_goals
+            if not g.approvals.filter_by(approver_id=user.id).first()
+        )
+
+        crews_data.append({
+            'crew': crew.to_dict(),
+            'my_pct': my_pct,
+            'crew_logs_count': crew_logs_count,
+            'last_log_timestamp': last_log.timestamp.isoformat() + "Z" if last_log else None,
+            'pending_count': pending_count,
+        })
+
+    return jsonify({
+        'unread': unread,
+        'total_logs_this_week': total_logs_this_week,
+        'quick_crew_id': quick_crew_id,
+        'crews_data': crews_data,
+    })
 
 
 @app.route('/api/logs/<int:log_id>', methods=['DELETE'])
@@ -1267,7 +1394,7 @@ def api_leave_crew(crew_id):
     crew = Crew.query.get_or_404(crew_id)
     membership = CrewMembership.query.filter_by(user_id=user.id, crew_id=crew.id).first()
     if not membership:
-        return jsonify({'error': 'not a member'}), 403
+        return jsonify({'error': '크루원이 아니에요.'}), 403
     if crew.owner_id == user.id:
         return jsonify({'error': '크루장은 탈퇴할 수 없습니다.'}), 400
     db.session.delete(membership)

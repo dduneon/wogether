@@ -4,60 +4,67 @@ import { useAuth } from '../context/AuthContext'
 import client from '../api/client'
 
 export default function Login() {
-  const { login } = useAuth()
-  const navigate = useNavigate()
   const [form, setForm] = useState({ username: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const { login } = useAuth()
+  const navigate = useNavigate()
 
-  const handleSubmit = async (e) => {
+  const submit = async (e) => {
     e.preventDefault()
-    setLoading(true)
     setError('')
+    setLoading(true)
     try {
-      const res = await client.post('/login', form)
-      login(res.data.token, res.data.user)
+      const r = await client.post('/login', form)
+      login(r.data.token, r.data.user)
       navigate('/')
     } catch (err) {
-      setError(err.response?.data?.error || '로그인에 실패했습니다.')
+      const msg = err.response?.data?.error
+      setError(msg || '로그인에 실패했어요. 잠시 후 다시 시도해주세요.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-center text-indigo-600 mb-8">워게더</h1>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold mb-4">로그인</h2>
-          {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <input
-              type="text"
-              placeholder="아이디"
-              value={form.username}
-              onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              required
-            />
-            <input
-              type="password"
-              placeholder="비밀번호"
-              value={form.password}
-              onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              required
-            />
-            <button type="submit" disabled={loading}
-              className="w-full bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
-              {loading ? '로그인 중...' : '로그인'}
+    <div className="auth-wrap">
+      <div className="auth-box fade-up">
+        <div className="auth-logo">Wogether</div>
+        <p className="auth-sub">크루와 함께 운동 목표를 달성하세요 💪</p>
+        {error && (
+          <div style={{ background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', marginBottom: 14, fontSize: '.875rem', color: 'var(--red)' }}>
+            {error}
+          </div>
+        )}
+        <div className="card card-neon-p">
+          <form onSubmit={submit}>
+            <div className="form-group">
+              <label className="form-label">아이디</label>
+              <input
+                type="text"
+                placeholder="아이디를 입력하세요"
+                required
+                value={form.username}
+                onChange={e => setForm({ ...form, username: e.target.value })}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">비밀번호</label>
+              <input
+                type="password"
+                placeholder="비밀번호를 입력하세요"
+                required
+                value={form.password}
+                onChange={e => setForm({ ...form, password: e.target.value })}
+              />
+            </div>
+            <button type="submit" className="btn btn-primary btn-full mt-8" disabled={loading}>
+              {loading ? '로그인 중…' : '로그인'}
             </button>
           </form>
-          <p className="text-center text-sm text-gray-500 mt-4">
-            계정이 없으신가요?{' '}
-            <Link to="/signup" className="text-indigo-600 font-medium">회원가입</Link>
-          </p>
+        </div>
+        <div className="auth-switch">
+          계정이 없으신가요? <Link to="/signup">회원가입</Link>
         </div>
       </div>
     </div>

@@ -1,58 +1,101 @@
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { useEffect, useState } from 'react'
 import client from '../api/client'
+import { kstShort } from '../utils/time'
+
+const NOTI_ICON = { nudge: '👉', goal_request: '🤝', goal_approved: '✅', join: '🎉' }
 
 export default function Navbar() {
-  const { user, logout } = useAuth()
+  const { logout } = useAuth()
   const navigate = useNavigate()
   const [unread, setUnread] = useState(0)
+  const [open, setOpen] = useState(false)
+  const [items, setItems] = useState(null)
+  const wrapRef = useRef(null)
+
+  const fetchUnread = async () => {
+    try {
+      const r = await client.get('/notifications/unread-count')
+      setUnread(r.data.count)
+    } catch {}
+  }
+
+  const loadPopup = async () => {
+    try {
+      const r = await client.get('/notifications')
+      setItems(r.data.slice(0, 5))
+      setUnread(0)
+    } catch {
+      setItems([])
+    }
+  }
 
   useEffect(() => {
-    if (!user) return
-    client.get('/notifications/unread-count')
-      .then(r => setUnread(r.data.count))
-      .catch(() => {})
-    const interval = setInterval(() => {
-      client.get('/notifications/unread-count')
-        .then(r => setUnread(r.data.count))
-        .catch(() => {})
-    }, 30000)
-    return () => clearInterval(interval)
-  }, [user])
+    fetchUnread()
+    const id = setInterval(fetchUnread, 30000)
+    return () => clearInterval(id)
+  }, [])
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [])
+
+  const toggle = () => {
+    const next = !open
+    setOpen(next)
+    if (next) loadPopup()
   }
 
   return (
-    <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
-      <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link to="/" className="font-bold text-lg text-indigo-600 tracking-tight">
-          워게더
-        </Link>
-        {user && (
-          <div className="flex items-center gap-3">
-            <Link to="/notifications" className="relative p-2 text-gray-500 hover:text-gray-900">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
+    <header className="top-nav">
+      <div className="nav-content">
+        <Link to="/" className="nav-logo">Wogether</Link>
+        <nav className="nav-links">
+          <div className="noti-popup-wrap" ref={wrapRef}>
+            <button className="noti-bell-btn" onClick={toggle}>
+              🔔 알림
               {unread > 0 && (
-                <span className="absolute top-1 right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                  {unread > 9 ? '9+' : unread}
-                </span>
+                <span className="noti-badge">{unread > 99 ? '99+' : unread}</span>
               )}
-            </Link>
-            <span className="text-sm text-gray-600">{user.nickname}</span>
-            <button onClick={handleLogout}
-              className="text-sm text-gray-500 hover:text-gray-900">
-              로그아웃
             </button>
+            {open && (
+              <div className="noti-dropdown">
+                <div className="noti-drop-head">
+                  <span>알림</span>
+                  <Link to="/notifications" onClick={() => setOpen(false)}>전체 보기</Link>
+                </div>
+                {items === null ? (
+                  <div className="noti-drop-empty">불러오는 중…</div>
+                ) : items.length === 0 ? (
+                  <div className="noti-drop-empty">알림이 없어요 😴</div>
+                ) : items.map(n => (
+                  <div key={n.id} className={`noti-drop-item${n.is_read ? '' : ' unread'}`}>
+                    <span className="noti-drop-icon">{NOTI_ICON[n.type] || '🔔'}</span>
+                    <div>
+                      <div className="noti-drop-msg">{n.message}</div>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span className="noti-drop-time">{kstShort(n.created_at)}</span>
+                        {n.crew_id && (
+                          <Link to={`/crew/${n.crew_id}`} className="noti-drop-link" onClick={() => setOpen(false)}>
+                            크루 보기 →
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+          <Link to="/crew/create">+ 크루</Link>
+          <button onClick={() => { logout(); navigate('/login') }}>로그아웃</button>
+        </nav>
       </div>
-    </nav>
+    </header>
   )
 }

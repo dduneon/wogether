@@ -1,134 +1,173 @@
 import { useEffect, useState, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import client from '../api/client'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import client from '../api/client'
 
-const WORKOUT_TYPES = ['러닝', '헬스', '수영', '자전거', '요가', '필라테스', '구기종목', '기타']
+const CATEGORY_WORKOUT_MAP = {
+  '런닝·조깅': '러닝', '헬스·웨이트': '헬스', '자전거': '자전거',
+  '수영': '수영', '요가·필라테스': '요가', '홈트': '홈트',
+  '구기종목': '구기종목', '등산·트레킹': '등산', '기타': '',
+}
 
 export default function CreateLog() {
-  const { id: crewId } = useParams()
-  const { user } = useAuth()
+  const { id } = useParams()
   const navigate = useNavigate()
-  const fileRef = useRef()
-  const [goals, setGoals] = useState([])
-  const [form, setForm] = useState({ caption: '', workout_type: '', goal_id: '' })
-  const [photos, setPhotos] = useState([])
+  const { user } = useAuth()
+  const fileInputRef = useRef(null)
+  const [myGoals, setMyGoals] = useState([])
+  const [form, setForm] = useState({ goal_id: '', workout_type: '', caption: '' })
+  const [files, setFiles] = useState([])
   const [previews, setPreviews] = useState([])
+  const [userEditedWT, setUserEditedWT] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    client.get(`/crews/${crewId}/goals`)
-      .then(r => setGoals(r.data.filter(g => g.status === 'approved' && g.user_id === user.id)))
-  }, [crewId])
+    client.get(`/crews/${id}/goals`).then(r => {
+      const mine = r.data.filter(g => g.status === 'approved' && g.user_id === user?.id)
+      setMyGoals(mine)
+    }).catch(() => {})
+  }, [id])
 
-  const handlePhotos = (e) => {
-    const files = Array.from(e.target.files)
-    setPhotos(files)
-    setPreviews(files.map(f => URL.createObjectURL(f)))
+  const onGoalChange = (goalId) => {
+    setForm(prev => ({ ...prev, goal_id: goalId }))
+    if (!goalId || userEditedWT) return
+    const goal = myGoals.find(g => String(g.id) === String(goalId))
+    if (goal) {
+      const suggested = CATEGORY_WORKOUT_MAP[goal.category] || goal.category || ''
+      setForm(prev => ({ ...prev, goal_id: goalId, workout_type: suggested }))
+    }
   }
 
-  const handleSubmit = async (e) => {
+  const selectedGoal = myGoals.find(g => String(g.id) === String(form.goal_id))
+
+  const handlePhotos = (e) => {
+    const selected = Array.from(e.target.files)
+    setFiles(selected)
+    setPreviews(selected.slice(0, 3).map(f => URL.createObjectURL(f)))
+  }
+
+  const submit = async (e) => {
     e.preventDefault()
-    if (photos.length === 0) { alert('사진을 최소 한 장 선택해주세요.'); return }
     setLoading(true)
+    const fd = new FormData()
+    files.forEach(f => fd.append('photo', f))
+    if (form.goal_id) fd.append('goal_id', form.goal_id)
+    if (form.workout_type) fd.append('workout_type', form.workout_type)
+    if (form.caption) fd.append('caption', form.caption)
     try {
-      const fd = new FormData()
-      fd.append('caption', form.caption)
-      fd.append('workout_type', form.workout_type)
-      if (form.goal_id) fd.append('goal_id', form.goal_id)
-      photos.forEach(f => fd.append('photo', f))
-      await client.post(`/crews/${crewId}/logs`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-      navigate(`/crew/${crewId}`)
+      await client.post(`/crews/${id}/logs`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      navigate(`/crew/${id}`)
     } catch (err) {
-      alert(err.response?.data?.error || '인증 등록에 실패했습니다.')
+      alert(err.response?.data?.error || '인증에 실패했어요.')
     } finally {
       setLoading(false)
     }
   }
 
-  return (
-    <div className="max-w-2xl mx-auto px-4 py-6">
-      <h1 className="text-xl font-bold mb-6">운동 인증</h1>
-      <div className="bg-white rounded-2xl border border-gray-200 p-6">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* 사진 선택 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">인증 사진</label>
-            <div onClick={() => fileRef.current.click()}
-              className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-indigo-400 transition-colors">
-              {previews.length > 0 ? (
-                <div className="flex gap-2 flex-wrap justify-center">
-                  {previews.map((src, i) => (
-                    <img key={i} src={src} alt="" className="h-20 w-20 object-cover rounded-lg" />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-gray-400">
-                  <p className="text-2xl mb-1">📸</p>
-                  <p className="text-sm">사진을 선택하세요</p>
-                </div>
-              )}
-            </div>
-            <input ref={fileRef} type="file" accept="image/*" multiple
-              onChange={handlePhotos} className="hidden" />
-          </div>
+  const previewClass = previews.length === 1 ? 'cols-1' : previews.length === 2 ? 'cols-2' : 'cols-3'
 
-          {/* 운동 종류 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">운동 종류</label>
-            <div className="flex flex-wrap gap-2">
-              {WORKOUT_TYPES.map(t => (
-                <button key={t} type="button"
-                  onClick={() => setForm(f => ({ ...f, workout_type: t }))}
-                  className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${
-                    form.workout_type === t
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'border-gray-300 text-gray-600 hover:border-indigo-400'
-                  }`}>
-                  {t}
-                </button>
-              ))}
-            </div>
+  return (
+    <div className="composer-wrap">
+      <div className="composer-box fade-up">
+        <div className="page-eyebrow">운동 인증</div>
+        <div className="heading" style={{ marginBottom: 20 }}>새 게시물 📸</div>
+
+        <form onSubmit={submit} id="composer-form">
+          {/* 사진 업로드 */}
+          <div
+            className={`composer-photo-area${previews.length > 0 ? ' has-preview' : ''}`}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {previews.length === 0 ? (
+              <>
+                <div className="composer-photo-icon">🖼</div>
+                <div className="composer-photo-hint">
+                  여기를 눌러 사진 추가<br />
+                  <span>JPG, PNG, WebP — 최대 여러 장</span>
+                </div>
+              </>
+            ) : (
+              <div className={`composer-preview-grid ${previewClass}`}>
+                {previews.map((src, i) => <img key={i} src={src} alt="" />)}
+              </div>
+            )}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              multiple
+              style={{ display: 'none' }}
+              onChange={handlePhotos}
+            />
           </div>
 
           {/* 연결 목표 */}
-          {goals.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">연결 목표 (선택)</label>
-              <select value={form.goal_id}
-                onChange={e => setForm(f => ({ ...f, goal_id: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                <option value="">선택 안 함</option>
-                {goals.map(g => (
-                  <option key={g.id} value={g.id}>{g.title}</option>
+          {myGoals.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <label className="form-label" style={{ fontSize: '.82rem', opacity: .7, marginBottom: 6, display: 'block' }}>
+                연결할 목표
+              </label>
+              <select
+                value={form.goal_id}
+                onChange={e => onGoalChange(e.target.value)}
+                style={{ width: '100%', padding: '10px 14px', background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', fontFamily: 'inherit', fontSize: '.9rem', outline: 'none' }}
+              >
+                <option value="">🎯 목표 연결 안 함</option>
+                {myGoals.map(g => (
+                  <option key={g.id} value={g.id}>
+                    {g.category} · {g.title} — 주 {g.frequency_per_week}회
+                  </option>
                 ))}
               </select>
+
+              {/* 선택된 목표 정보 카드 */}
+              {selectedGoal && (
+                <div style={{ display: 'none', marginTop: 10, padding: '12px 14px', background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', ...(form.goal_id ? { display: 'block' } : {}) }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <span style={{ fontSize: '.78rem', padding: '3px 9px', borderRadius: 20, background: 'rgba(0,229,255,.12)', color: '#00e5ff', border: '1px solid rgba(0,229,255,.25)' }}>
+                      {selectedGoal.category}
+                    </span>
+                    <span style={{ fontSize: '.88rem', fontWeight: 600 }}>{selectedGoal.title}</span>
+                  </div>
+                  <div style={{ fontSize: '.78rem', opacity: .6, marginBottom: 6 }}>이번 주 진행률</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,.1)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', background: '#00e5ff', borderRadius: 3, width: `${selectedGoal.progress.percent}%`, transition: 'width .3s' }} />
+                    </div>
+                    <span style={{ fontSize: '.82rem', fontWeight: 700, color: '#00e5ff', whiteSpace: 'nowrap' }}>
+                      {selectedGoal.progress.done} / {selectedGoal.progress.target}회
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* 한마디 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">한마디 (선택)</label>
-            <textarea value={form.caption}
-              onChange={e => setForm(f => ({ ...f, caption: e.target.value }))}
-              rows={2}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              placeholder="오늘 운동 어땠나요?" />
+          {/* 캡션 + 운동 종류 */}
+          <div style={{ marginTop: 14, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 16 }}>
+            <textarea
+              className="composer-caption"
+              placeholder="오늘 운동 어땠나요? 크루에 자랑해보세요 💪"
+              rows={3}
+              value={form.caption}
+              onChange={e => setForm({ ...form, caption: e.target.value })}
+            />
+            <div className="composer-meta-row" style={{ marginTop: 12 }}>
+              <input
+                type="text"
+                placeholder="# 운동 종류  (예: 러닝, 헬스, 요가)"
+                value={form.workout_type}
+                onChange={e => { setUserEditedWT(true); setForm({ ...form, workout_type: e.target.value }) }}
+              />
+            </div>
           </div>
 
-          <div className="flex gap-3">
-            <button type="button" onClick={() => navigate(-1)}
-              className="flex-1 border border-gray-300 rounded-lg py-2 text-sm font-medium hover:bg-gray-50">
-              취소
-            </button>
-            <button type="submit" disabled={loading}
-              className="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
-              {loading ? '업로드 중...' : '인증 완료 🔥'}
-            </button>
-          </div>
+          <button type="submit" className="btn btn-primary btn-full mt-16" style={{ fontSize: '1rem', padding: 14 }} disabled={loading}>
+            {loading ? '공유 중…' : '공유하기 🔥'}
+          </button>
         </form>
+
+        <Link to={`/crew/${id}`} className="btn btn-ghost btn-full mt-8">← 돌아가기</Link>
       </div>
     </div>
   )
