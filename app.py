@@ -1,5 +1,7 @@
 import os
 import secrets
+from dotenv import load_dotenv
+load_dotenv()
 from functools import wraps
 from datetime import date, timedelta, datetime
 from flask import (
@@ -1200,6 +1202,75 @@ def api_read_notifications():
     user = request.api_user
     Notification.query.filter_by(recipient_id=user.id, is_read=False)\
         .update({'is_read': True})
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/notifications/unread-count', methods=['GET'])
+@token_required
+def api_notifications_unread_count():
+    user = request.api_user
+    count = Notification.query.filter_by(recipient_id=user.id, is_read=False).count()
+    return jsonify({'count': count})
+
+
+@app.route('/api/logs/<int:log_id>', methods=['DELETE'])
+@token_required
+def api_delete_log(log_id):
+    user = request.api_user
+    log = WorkoutLog.query.get_or_404(log_id)
+    if log.user_id != user.id:
+        return jsonify({'error': 'forbidden'}), 403
+    for image in log.images:
+        try:
+            minio_client.remove_object(MINIO_BUCKET, image.filename)
+        except S3Error:
+            pass
+    db.session.delete(log)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/logs/<int:log_id>/like', methods=['POST'])
+@token_required
+def api_toggle_like(log_id):
+    user = request.api_user
+    log = WorkoutLog.query.get_or_404(log_id)
+    existing = WorkoutLike.query.filter_by(log_id=log.id, user_id=user.id).first()
+    if existing:
+        db.session.delete(existing)
+        liked = False
+    else:
+        db.session.add(WorkoutLike(log_id=log.id, user_id=user.id))
+        liked = True
+    db.session.commit()
+    count = WorkoutLike.query.filter_by(log_id=log.id).count()
+    return jsonify({'liked': liked, 'count': count})
+
+
+@app.route('/api/goals/<int:goal_id>', methods=['DELETE'])
+@token_required
+def api_delete_goal(goal_id):
+    user = request.api_user
+    goal = Goal.query.get_or_404(goal_id)
+    if goal.user_id != user.id:
+        return jsonify({'error': 'forbidden'}), 403
+    db.session.delete(goal)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/crews/<int:crew_id>/leave', methods=['POST'])
+@token_required
+def api_leave_crew(crew_id):
+    user = request.api_user
+    crew = Crew.query.get_or_404(crew_id)
+    membership = CrewMembership.query.filter_by(user_id=user.id, crew_id=crew.id).first()
+    if not membership:
+        return jsonify({'error': 'not a member'}), 403
+    if crew.owner_id == user.id:
+        return jsonify({'error': '크루장은 탈퇴할 수 없습니다.'}), 400
+    db.session.delete(membership)
     db.session.commit()
     return jsonify({'ok': True})
 

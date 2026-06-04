@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Wogether (워게더)** — 크루를 만들고, 주간 운동 목표를 설정하고, 인증 사진을 올리며 서로 독촉하는 운동 책임 앱.
 
-레포 폴더명은 `owoonstagram`이지만 앱/DB명은 `wogether` (`wogether.db`).
+레포 폴더명은 `owoonstagram`이지만 앱/DB명은 `wogether` (MariaDB, DB명 `wogether`).
 
 ## Running the App
 
@@ -25,7 +25,7 @@ cd frontend && npm install && npm run dev
 cd frontend && npm run build
 ```
 
-SQLite DB(`wogether.db`)와 업로드 폴더(`static/uploads/`)는 첫 실행 시 자동 생성.
+DB 테이블은 첫 요청 시 `before_request`에서 자동 생성(`db.create_all()`). 로컬 개발 시 MariaDB와 MinIO가 필요하며, 환경변수로 연결 설정.
 
 ## Architecture
 
@@ -76,7 +76,7 @@ User ──< CrewMembership >── Crew
 User ──< Goal (크루별, 주간 횟수)
          Goal ──< GoalApproval (팀원 투표로 승인)
 User ──< WorkoutLog (크루별, Goal에 선택적 연결)
-         WorkoutLog ──< WorkoutImage (WebP로 static/uploads/ 저장)
+         WorkoutLog ──< WorkoutImage (WebP로 MinIO에 저장, filename 컬럼만 DB에)
 Notification (nudge | goal_request | goal_approved | join)
 CrewActivity  (피드용 이벤트 로그)
 WorkoutLike
