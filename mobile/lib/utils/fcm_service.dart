@@ -44,8 +44,7 @@ class FcmService {
     // 포그라운드 메시지 수신 → 로컬 알림으로 표시
     FirebaseMessaging.onMessage.listen((message) {
       final notification = message.notification;
-      final android = message.notification?.android;
-      if (notification != null && android != null) {
+      if (notification != null) {
         _localNotif.show(
           notification.hashCode,
           notification.title,
@@ -75,6 +74,9 @@ class FcmService {
   static Future<void> _saveToken(String token) async {
     try {
       await dio.post('/api/fcm-token', data: {'token': token});
-    } catch (_) {}
+    } catch (e) {
+      // ignore: avoid_print
+      print('[FCM] 토큰 저장 실패: $e');
+    }
   }
 }
