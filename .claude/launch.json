@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "wogether",
-      "runtimeExecutable": "/Users/dduneon/dev/owoonstagram/.venv/bin/python",
+      "runtimeExecutable": "/Users/dduneon/dev/wogether/.venv/bin/python",
       "runtimeArgs": ["app.py"],
       "port": 3030
     }

@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Wogether{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script>document.documentElement.setAttribute('data-theme',(localStorage.getItem('wogether-theme')||'dark')==='light'?'light':'dark');</script>
   <style>
     /* ── Notification Popup ── */
     .noti-popup-wrap { position: relative; }
@@ -79,6 +80,71 @@
     .toast.removing { animation: slideOutRight .3s ease forwards; }
     @keyframes slideInRight  { from { opacity:0; transform:translateX(24px); } to { opacity:1; transform:translateX(0); } }
     @keyframes slideOutRight { from { opacity:1; transform:translateX(0); } to { opacity:0; transform:translateX(24px); } }
+
+    /* ── Theme Dropdown ── */
+    .theme-popup-wrap { position: relative; }
+
+    .theme-dropdown {
+      position: absolute; top: calc(100% + 8px); right: 0;
+      width: 220px;
+      background: var(--bg-2); border: 1px solid var(--border-h);
+      border-radius: var(--radius); box-shadow: 0 16px 48px rgba(0,0,0,.6);
+      z-index: 9000; display: none; animation: fadeUp .2s ease;
+    }
+    .theme-dropdown.open { display: block; }
+
+    .theme-drop-head {
+      padding: 12px 14px 8px;
+      font-size: .75rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .theme-options { padding: 6px; }
+
+    .theme-opt {
+      display: flex; align-items: center; gap: 10px;
+      width: 100%; padding: 9px 10px; border-radius: var(--radius-sm);
+      background: none; border: none; cursor: pointer;
+      font-family: inherit; font-size: .88rem; color: var(--text);
+      transition: background .15s;
+    }
+    .theme-opt:hover { background: var(--bg-3); }
+    .theme-opt-icon { font-size: 1rem; flex-shrink: 0; }
+    .theme-opt-label { flex: 1; text-align: left; }
+    .theme-opt-check { font-size: .8rem; color: var(--accent); opacity: 0; transition: opacity .15s; }
+    .theme-opt-check.visible { opacity: 1; }
+
+    .theme-custom-row {
+      display: none; padding: 10px 14px 14px;
+      border-top: 1px solid var(--border);
+    }
+    .theme-custom-row.show { display: block; }
+    .theme-custom-label {
+      font-size: .72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--text-muted);
+      display: block; margin-bottom: 8px;
+    }
+    .theme-color-presets {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;
+    }
+    .theme-preset-dot {
+      width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+      border: 2px solid transparent; transition: transform .15s, border-color .15s;
+    }
+    .theme-preset-dot:hover { transform: scale(1.15); }
+    .theme-preset-dot.active { border-color: var(--text); }
+
+    .theme-custom-input-row {
+      display: flex; align-items: center; gap: 10px;
+    }
+    #theme-color-picker {
+      width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border-h);
+      padding: 2px; background: var(--bg-3); cursor: pointer;
+    }
+    .theme-custom-hex {
+      font-family: 'Space Mono', monospace; font-size: .82rem; color: var(--text-muted);
+    }
   </style>
 </head>
 <body>
@@ -109,6 +175,25 @@
           <a href="{{ url_for('login') }}">로그인</a>
           <a href="{{ url_for('signup') }}">시작하기</a>
         {% endif %}
+        <!-- 테마 설정 버튼 -->
+        <div class="theme-popup-wrap" id="theme-wrap">
+          <button class="noti-bell-btn" id="theme-btn" onclick="toggleThemePopup()" title="테마 설정" aria-label="테마 설정">⚙️</button>
+          <div class="theme-dropdown" id="theme-dropdown">
+            <div class="theme-drop-head">테마</div>
+            <div class="theme-options">
+              <button class="theme-opt" data-mode="dark" onclick="setThemeMode('dark')">
+                <span class="theme-opt-icon">🌑</span>
+                <span class="theme-opt-label">다크</span>
+                <span class="theme-opt-check" id="check-dark">✓</span>
+              </button>
+              <button class="theme-opt" data-mode="light" onclick="setThemeMode('light')">
+                <span class="theme-opt-icon">☀️</span>
+                <span class="theme-opt-label">라이트</span>
+                <span class="theme-opt-check" id="check-light">✓</span>
+              </button>
+            </div>
+          </div>
+        </div>
       </nav>
     </div>
   </header>
@@ -124,6 +209,41 @@
   <div id="toast-area"></div>
 
   <main>{% block content %}{% endblock %}</main>
+
+  <!-- ── Theme Script ── -->
+  <script>
+  function applyTheme(mode) {
+    document.documentElement.setAttribute('data-theme', mode === 'light' ? 'light' : 'dark');
+    ['dark','light'].forEach(m => {
+      const el = document.getElementById('check-' + m);
+      if (el) el.classList.toggle('visible', m === mode);
+    });
+  }
+
+  function setThemeMode(mode) {
+    localStorage.setItem('wogether-theme', mode);
+    applyTheme(mode);
+  }
+
+  let themePopupOpen = false;
+
+  function toggleThemePopup() {
+    const dd = document.getElementById('theme-dropdown');
+    themePopupOpen = !themePopupOpen;
+    dd.classList.toggle('open', themePopupOpen);
+    if (themePopupOpen) applyTheme(localStorage.getItem('wogether-theme') || 'dark');
+  }
+
+  document.addEventListener('click', (e) => {
+    const wrap = document.getElementById('theme-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+      document.getElementById('theme-dropdown').classList.remove('open');
+      themePopupOpen = false;
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', () => applyTheme(localStorage.getItem('wogether-theme') || 'dark'));
+  </script>
 
   {% if current_user.is_authenticated %}
   <script>
