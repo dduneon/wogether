@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Wogether (워게더)** — 크루를 만들고, 주간 운동 목표를 설정하고, 인증 사진을 올리며 서로 독촉하는 운동 책임 앱.
 
-레포 폴더명은 `owoonstagram`이지만 앱/DB명은 `wogether` (MariaDB, DB명 `wogether`).
+앱/DB명: `wogether` (MariaDB, DB명 `wogether`).
 
 ## Running the App
 
