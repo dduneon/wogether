@@ -7,34 +7,95 @@
     <div class="heading">알림 🔔</div>
   </div>
   {% if notifications %}
-  <div class="noti-list fade-up-1">
+  <div class="noti-list fade-up-1" id="noti-list">
     {% for n in notifications %}
-    <div class="noti-item {% if not n.is_read %}unread{% endif %}">
-      <span class="noti-icon">
+    <div class="noti-item {% if not n.is_read %}unread{% endif %}" id="noti-{{ n.id }}" data-noti-id="{{ n.id }}">
+      <span class="noti-icon" style="cursor:pointer" onclick="deleteNoti({{ n.id }})">
         {% if n.type == 'nudge' %}👉
         {% elif n.type == 'goal_request' %}🤝
         {% elif n.type == 'goal_approved' %}✅
         {% elif n.type == 'join' %}🎉
         {% else %}🔔{% endif %}
       </span>
-      <div class="noti-body">
+      <div class="noti-body" style="cursor:pointer" onclick="deleteNoti({{ n.id }})">
         <p class="noti-msg">{{ n.message }}</p>
         <div class="noti-meta">
           {{ n.created_at | kst }}
           {% if n.crew_id %}
           &nbsp;·&nbsp;
-          <a href="{{ url_for('crew_detail', crew_id=n.crew_id) }}" style="color:var(--purple-l)">크루 보기 →</a>
+          <a href="{{ url_for('crew_detail', crew_id=n.crew_id) }}" style="color:var(--purple-l)" onclick="event.stopPropagation()">크루 보기 →</a>
           {% endif %}
         </div>
       </div>
+      <button class="noti-delete-btn" onclick="deleteNoti({{ n.id }})" title="삭제">×</button>
     </div>
     {% endfor %}
   </div>
+  <div class="empty-state fade-up-1" id="noti-empty" style="display:none">
+    <div class="empty-state-icon">🔔</div>
+    <p>알림이 없어요</p>
+  </div>
   {% else %}
-  <div class="empty-state fade-up-1">
+  <div class="empty-state fade-up-1" id="noti-empty">
     <div class="empty-state-icon">🔔</div>
     <p>알림이 없어요</p>
   </div>
   {% endif %}
 </div>
+
+<script>
+async function deleteNoti(id) {
+  const el = document.getElementById('noti-' + id);
+  if (!el) return;
+  el.style.transition = 'opacity 0.2s, transform 0.2s';
+  el.style.opacity = '0';
+  el.style.transform = 'translateX(20px)';
+  setTimeout(async () => {
+    try {
+      await fetch('/notifications/' + id + '/delete', { method: 'POST' });
+    } catch (e) {}
+    el.remove();
+    const list = document.getElementById('noti-list');
+    if (list && list.querySelectorAll('.noti-item').length === 0) {
+      if (list) list.style.display = 'none';
+      const empty = document.getElementById('noti-empty');
+      if (empty) empty.style.display = '';
+    }
+  }, 200);
+}
+</script>
+
+<style>
+.noti-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.noti-delete-btn {
+  flex-shrink: 0;
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted, #888);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+  align-self: center;
+}
+.noti-delete-btn:hover {
+  background: rgba(255,80,80,0.12);
+  color: #ff5050;
+}
+.noti-body {
+  flex: 1;
+  min-width: 0;
+}
+.noti-item:hover {
+  background: rgba(255,255,255,0.04);
+}
+</style>
 {% endblock %}

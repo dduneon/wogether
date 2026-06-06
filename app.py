@@ -8,6 +8,7 @@ from flask import (
     Flask, render_template, request, redirect, url_for, flash, abort, session, jsonify
 )
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from flask_login import (
     LoginManager, UserMixin, login_user, logout_user, current_user, login_required
 )
@@ -67,6 +68,7 @@ def _ensure_bucket():
         minio_client.make_bucket(MINIO_BUCKET)
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 # Firebase Admin 초기화
 _firebase_cred_path = os.environ.get('FIREBASE_CREDENTIALS', 'firebase-credentials.json')
@@ -1067,6 +1069,15 @@ def notifications_unread_count():
     return jsonify({'count': count})
 
 
+@app.route('/notifications/<int:noti_id>/delete', methods=['POST'])
+@login_required
+def notification_delete(noti_id):
+    noti = Notification.query.filter_by(id=noti_id, recipient_id=current_user.id).first_or_404()
+    db.session.delete(noti)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
 # =====================================================================
 # 8. 안드로이드용 REST JSON API  (토큰 인증)
 # =====================================================================
@@ -1386,6 +1397,16 @@ def api_read_notifications():
     user = request.api_user
     Notification.query.filter_by(recipient_id=user.id, is_read=False)\
         .update({'is_read': True})
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/notifications/<int:noti_id>', methods=['DELETE'])
+@token_required
+def api_notification_delete(noti_id):
+    user = request.api_user
+    noti = Notification.query.filter_by(id=noti_id, recipient_id=user.id).first_or_404()
+    db.session.delete(noti)
     db.session.commit()
     return jsonify({'ok': True})
 

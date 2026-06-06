@@ -8,7 +8,18 @@
   --text:#fafafa;--text-muted:#71717a;--text-dim:#3f3f46;
   --radius:16px;--radius-sm:10px;--gap:12px;
   --glow-p:0 0 24px rgba(168,85,247,0.35);--glow-c:0 0 24px rgba(34,211,238,0.35);
+  --accent:var(--purple);--accent-l:var(--purple-l);
 }
+[data-theme="light"] {
+  --bg:#f5f5f7;--bg-2:#ffffff;--bg-3:#e8e8ed;
+  --border:rgba(0,0,0,0.08);--border-h:rgba(0,0,0,0.16);
+  --text:#0a0a0a;--text-muted:#6b7280;--text-dim:#9ca3af;
+  --glow-p:0 0 20px rgba(168,85,247,0.2);--glow-c:0 0 20px rgba(34,211,238,0.2);
+}
+[data-theme="light"] body::before{opacity:.08}
+[data-theme="light"] .top-nav{background:rgba(245,245,247,.9)}
+[data-theme="light"] .noti-dropdown{box-shadow:0 8px 32px rgba(0,0,0,.15)}
+[data-theme="light"] .theme-dropdown{box-shadow:0 8px 32px rgba(0,0,0,.15)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{font-family:'Space Grotesk',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding-top:64px;padding-bottom:80px;-webkit-font-smoothing:antialiased}
@@ -46,6 +57,8 @@ a{text-decoration:none;color:inherit}
 .noti-drop-time{font-size:.72rem;color:var(--text-muted)}
 .noti-drop-link{font-size:.72rem;color:var(--purple-l);font-weight:600}
 .noti-drop-empty{padding:32px 16px;text-align:center;color:var(--text-muted);font-size:.875rem}
+.noti-drop-del{flex-shrink:0;background:none;border:none;color:var(--text-muted);font-size:18px;line-height:1;cursor:pointer;padding:2px 5px;border-radius:5px;transition:background .15s,color .15s;align-self:center}
+.noti-drop-del:hover{background:rgba(255,80,80,.12);color:#ff5050}
 
 .bento{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--gap)}
 .b-12{grid-column:span 12}.b-8{grid-column:span 8}.b-6{grid-column:span 6}
@@ -270,3 +283,25 @@ a{text-decoration:none;color:inherit}
 .flex{display:flex}.flex-between{display:flex;justify-content:space-between;align-items:center}
 .flex-center{display:flex;align-items:center}.gap-8{gap:8px}.gap-12{gap:12px}
 .text-muted{color:var(--text-muted)}.text-purple{color:var(--purple-l)}.text-cyan{color:var(--cyan)}.text-green{color:var(--green)}.text-yellow{color:var(--yellow)}
+
+/* ── Theme Dropdown ── */
+.theme-popup-wrap{position:relative}
+.theme-dropdown{position:absolute;top:calc(100% + 8px);right:0;width:220px;background:var(--bg-2);border:1px solid var(--border-h);border-radius:var(--radius);box-shadow:0 16px 48px rgba(0,0,0,.6);z-index:9000;animation:fadeUp .2s ease}
+.theme-drop-head{padding:12px 14px 8px;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);border-bottom:1px solid var(--border)}
+.theme-options{padding:6px}
+.theme-opt{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border-radius:var(--radius-sm);background:none;border:none;cursor:pointer;font-family:inherit;font-size:.88rem;color:var(--text);transition:background .15s}
+.theme-opt:hover{background:var(--bg-3)}
+.theme-opt-icon{font-size:1rem;flex-shrink:0}
+.theme-opt-label{flex:1;text-align:left}
+.theme-opt-check{font-size:.8rem;color:var(--purple);opacity:0;transition:opacity .15s}
+.theme-opt-check.visible{opacity:1}
+.theme-custom-row{display:none;padding:10px 14px 14px;border-top:1px solid var(--border)}
+.theme-custom-row.show{display:block}
+.theme-custom-label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);display:block;margin-bottom:8px}
+.theme-color-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.theme-preset-dot{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .15s,border-color .15s}
+.theme-preset-dot:hover{transform:scale(1.15)}
+.theme-preset-dot.active{border-color:var(--text)}
+.theme-custom-input-row{display:flex;align-items:center;gap:10px}
+#theme-color-picker,#theme-bg-picker{width:36px;height:36px;border-radius:8px;border:1px solid var(--border-h);padding:2px;background:var(--bg-3);cursor:pointer}
+.theme-custom-hex{font-family:'Space Mono',monospace;font-size:.82rem;color:var(--text-muted)}

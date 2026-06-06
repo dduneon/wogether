@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import client from '../api/client'
 import { kstShort } from '../utils/time'
+import ThemeDropdown from './ThemeDropdown'
 
 const NOTI_ICON = { nudge: '👉', goal_request: '🤝', goal_approved: '✅', join: '🎉' }
 
@@ -29,6 +30,14 @@ export default function Navbar() {
     } catch {
       setItems([])
     }
+  }
+
+  const deleteNoti = async (id, e) => {
+    e.stopPropagation()
+    try {
+      await client.delete(`/notifications/${id}`)
+      setItems(prev => prev.filter(n => n.id !== id))
+    } catch {}
   }
 
   useEffect(() => {
@@ -76,7 +85,7 @@ export default function Navbar() {
                 ) : items.map(n => (
                   <div key={n.id} className={`noti-drop-item${n.is_read ? '' : ' unread'}`}>
                     <span className="noti-drop-icon">{NOTI_ICON[n.type] || '🔔'}</span>
-                    <div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="noti-drop-msg">{n.message}</div>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         <span className="noti-drop-time">{kstShort(n.created_at)}</span>
@@ -87,13 +96,20 @@ export default function Navbar() {
                         )}
                       </div>
                     </div>
+                    <button
+                      className="noti-drop-del"
+                      onClick={(e) => deleteNoti(n.id, e)}
+                      title="삭제"
+                    >×</button>
                   </div>
                 ))}
               </div>
             )}
           </div>
+
           <Link to="/crew/create">+ 크루</Link>
           <button onClick={() => { logout(); navigate('/login') }}>로그아웃</button>
+          <ThemeDropdown />
         </nav>
       </div>
     </header>
