@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../api/goal_api.dart';
 import '../../utils/theme.dart';
+import '../../utils/theme_provider.dart';
 import '../../widgets/w_app_bar.dart';
 
 const _categories = [
@@ -26,7 +27,16 @@ class _CreateGoalScreenState extends State<CreateGoalScreen> {
   bool _loading = false;
 
   @override
+  void initState() {
+    super.initState();
+    ThemeProvider().addListener(_onTheme);
+  }
+
+  void _onTheme() { if (mounted) setState(() {}); }
+
+  @override
   void dispose() {
+    ThemeProvider().removeListener(_onTheme);
     _titleCtrl.dispose();
     _descCtrl.dispose();
     super.dispose();

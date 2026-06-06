@@ -6,6 +6,13 @@
       "runtimeExecutable": "/Users/dduneon/dev/wogether/.venv/bin/python",
       "runtimeArgs": ["app.py"],
       "port": 3030
+    },
+    {
+      "name": "wogether-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "/Users/dduneon/dev/wogether/frontend",
+      "port": 5173
     }
   ]
 }

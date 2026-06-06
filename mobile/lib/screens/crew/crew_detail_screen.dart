@@ -9,6 +9,7 @@ import '../../api/goal_api.dart';
 import '../../api/client.dart';
 import '../../utils/auth_store.dart';
 import '../../utils/theme.dart';
+import '../../utils/theme_provider.dart';
 import '../../widgets/w_card.dart';
 import '../../widgets/w_app_bar.dart';
 
@@ -29,11 +30,15 @@ class _CrewDetailScreenState extends State<CrewDetailScreen> with SingleTickerPr
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 2, vsync: this);
+    ThemeProvider().addListener(_onTheme);
     _load();
   }
 
+  void _onTheme() { if (mounted) setState(() {}); }
+
   @override
   void dispose() {
+    ThemeProvider().removeListener(_onTheme);
     _tabCtrl.dispose();
     super.dispose();
   }

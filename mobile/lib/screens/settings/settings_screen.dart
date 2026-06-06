@@ -10,6 +10,13 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: ThemeProvider(),
+      builder: (context, _) => _buildContent(context),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final user = AuthStore().user;
     final username = user?['username'] ?? user?['nickname'] ?? '';
     final email = user?['email'] ?? '';
@@ -231,12 +238,7 @@ class _SettingsTile extends StatelessWidget {
 }
 
 // ── 테마 타일 ────────────────────────────────────────────────────────────────
-class _ThemeTile extends StatefulWidget {
-  @override
-  State<_ThemeTile> createState() => _ThemeTileState();
-}
-
-class _ThemeTileState extends State<_ThemeTile> {
+class _ThemeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = ThemeProvider();
@@ -286,7 +288,6 @@ class _ThemeTileState extends State<_ThemeTile> {
                   onTap: () {
                     HapticFeedback.selectionClick();
                     p.setMode(WThemeMode.dark);
-                    setState(() {});
                   },
                 ),
                 _ThemeSegment(
@@ -296,7 +297,6 @@ class _ThemeTileState extends State<_ThemeTile> {
                   onTap: () {
                     HapticFeedback.selectionClick();
                     p.setMode(WThemeMode.light);
-                    setState(() {});
                   },
                 ),
               ],

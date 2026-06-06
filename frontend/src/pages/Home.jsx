@@ -51,12 +51,9 @@ export default function Home() {
         )}
       </div>
 
-      {/* 달력 + 주간 요약 2열 */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }} className="home-two-col">
-        <WorkoutCalendar />
-
+        {/* 왼쪽: 주간 요약 + 크루 참여 + 달력 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* 주간 요약 카드 */}
           <div className="week-summary-card fade-up-1">
             <div className="week-summary-left">
               <div className="week-summary-label">이번 주 내 인증</div>
@@ -84,7 +81,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 크루 참여 */}
           <div className="card join-card fade-up-2">
             <form onSubmit={joinCrew} className="join-input-row">
               <input
@@ -99,60 +95,64 @@ export default function Home() {
             </form>
             <Link to="/crew/create" className="btn btn-secondary btn-sm">+ 새 크루</Link>
           </div>
+
+          <WorkoutCalendar />
+        </div>
+
+        {/* 오른쪽: 크루 목록 */}
+        <div>
+          <div className="section-label fade-up-3">내 크루 {crews_data.length}</div>
+          {crews_data.length > 0 ? (
+            <div className="fade-up-3" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {crews_data.map(d => {
+                const { crew, my_pct, crew_logs_count, last_log_timestamp, pending_count } = d
+                const pctClass = my_pct >= 100 ? 'text-green' : my_pct >= 50 ? 'text-yellow' : 'text-muted'
+                const fillClass = my_pct >= 100 ? 'green' : my_pct >= 50 ? 'yellow' : ''
+                return (
+                  <Link key={crew.id} to={`/crew/${crew.id}`} className="crew-card">
+                    <div className="crew-card-inner">
+                      <div className="crew-card-top">
+                        <div className="crew-card-name">{crew.name}</div>
+                        {pending_count > 0 && (
+                          <span className="crew-pending-badge">🤝 {pending_count}</span>
+                        )}
+                      </div>
+                      {crew.description && (
+                        <div className="crew-card-desc">{crew.description}</div>
+                      )}
+                      <div className="crew-card-progress-label">
+                        <span>내 이번 주 달성률</span>
+                        <span className={pctClass} style={{ fontWeight: 700, fontFamily: "'Space Mono', monospace" }}>
+                          {my_pct}%
+                        </span>
+                      </div>
+                      <div className="progress-track" style={{ marginBottom: 14 }}>
+                        <div className={`progress-fill ${fillClass}`} style={{ width: `${my_pct}%` }} />
+                      </div>
+                      <div className="crew-card-meta-row">
+                        <span className="crew-card-meta">
+                          <span className="crew-card-dot" />
+                          {crew.member_count}명
+                        </span>
+                        <span className="crew-card-meta">🔥 이번 주 {crew_logs_count}회</span>
+                        <span className="crew-card-meta">
+                          {last_log_timestamp ? `🕐 ${kstShort(last_log_timestamp)}` : '아직 인증 없음'}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="empty-state fade-up-3">
+              <div className="empty-state-icon">🏃</div>
+              <p>아직 속한 크루가 없어요.<br />크루를 만들거나 초대코드로 참여해보세요!</p>
+              <Link to="/crew/create" className="btn btn-primary mt-16">첫 크루 만들기</Link>
+            </div>
+          )}
         </div>
       </div>
-
-      <div className="section-label fade-up-3">내 크루 {crews_data.length}</div>
-
-      {crews_data.length > 0 ? (
-        <div className="crew-bento fade-up-3">
-          {crews_data.map(d => {
-            const { crew, my_pct, crew_logs_count, last_log_timestamp, pending_count } = d
-            const pctClass = my_pct >= 100 ? 'text-green' : my_pct >= 50 ? 'text-yellow' : 'text-muted'
-            const fillClass = my_pct >= 100 ? 'green' : my_pct >= 50 ? 'yellow' : ''
-            return (
-              <Link key={crew.id} to={`/crew/${crew.id}`} className="crew-card">
-                <div className="crew-card-inner">
-                  <div className="crew-card-top">
-                    <div className="crew-card-name">{crew.name}</div>
-                    {pending_count > 0 && (
-                      <span className="crew-pending-badge">🤝 {pending_count}</span>
-                    )}
-                  </div>
-                  {crew.description && (
-                    <div className="crew-card-desc">{crew.description}</div>
-                  )}
-                  <div className="crew-card-progress-label">
-                    <span>내 이번 주 달성률</span>
-                    <span className={pctClass} style={{ fontWeight: 700, fontFamily: "'Space Mono', monospace" }}>
-                      {my_pct}%
-                    </span>
-                  </div>
-                  <div className="progress-track" style={{ marginBottom: 14 }}>
-                    <div className={`progress-fill ${fillClass}`} style={{ width: `${my_pct}%` }} />
-                  </div>
-                  <div className="crew-card-meta-row">
-                    <span className="crew-card-meta">
-                      <span className="crew-card-dot" />
-                      {crew.member_count}명
-                    </span>
-                    <span className="crew-card-meta">🔥 이번 주 {crew_logs_count}회</span>
-                    <span className="crew-card-meta">
-                      {last_log_timestamp ? `🕐 ${kstShort(last_log_timestamp)}` : '아직 인증 없음'}
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            )
-          })}
-        </div>
-      ) : (
-        <div className="empty-state fade-up-3">
-          <div className="empty-state-icon">🏃</div>
-          <p>아직 속한 크루가 없어요.<br />크루를 만들거나 초대코드로 참여해보세요!</p>
-          <Link to="/crew/create" className="btn btn-primary mt-16">첫 크루 만들기</Link>
-        </div>
-      )}
     </div>
   )
 }

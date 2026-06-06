@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../api/notification_api.dart';
 import '../../utils/theme.dart';
+import '../../utils/theme_provider.dart';
 import '../../widgets/w_app_bar.dart';
 
 class NotificationScreen extends StatefulWidget {
@@ -17,7 +18,16 @@ class _NotificationScreenState extends State<NotificationScreen> {
   @override
   void initState() {
     super.initState();
+    ThemeProvider().addListener(_onTheme);
     _load();
+  }
+
+  void _onTheme() { if (mounted) setState(() {}); }
+
+  @override
+  void dispose() {
+    ThemeProvider().removeListener(_onTheme);
+    super.dispose();
   }
 
   Future<void> _load() async {

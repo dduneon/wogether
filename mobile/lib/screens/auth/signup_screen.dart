@@ -4,6 +4,7 @@ import '../../api/auth_api.dart';
 import '../../utils/auth_store.dart';
 import '../../utils/fcm_service.dart';
 import '../../utils/theme.dart';
+import '../../utils/theme_provider.dart';
 import '../../widgets/w_card.dart';
 import '../../widgets/w_app_bar.dart';
 
@@ -19,6 +20,20 @@ class _SignupScreenState extends State<SignupScreen> {
   final _passwordCtrl = TextEditingController();
   final _nicknameCtrl = TextEditingController();
   bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ThemeProvider().addListener(_onTheme);
+  }
+
+  void _onTheme() { if (mounted) setState(() {}); }
+
+  @override
+  void dispose() {
+    ThemeProvider().removeListener(_onTheme);
+    super.dispose();
+  }
 
   Future<void> _signup() async {
     setState(() => _loading = true);

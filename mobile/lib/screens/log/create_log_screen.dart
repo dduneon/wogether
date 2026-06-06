@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../api/log_api.dart';
 import '../../api/goal_api.dart';
 import '../../utils/theme.dart';
+import '../../utils/theme_provider.dart';
 import 'dart:io';
 
 const _workoutTypes = ['헬스', '러닝', '수영', '자전거', '요가', '필라테스', '등산', '축구', '농구', '기타'];
@@ -30,7 +31,16 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
   @override
   void initState() {
     super.initState();
+    ThemeProvider().addListener(_onTheme);
     _loadGoals();
+  }
+
+  void _onTheme() { if (mounted) setState(() {}); }
+
+  @override
+  void dispose() {
+    ThemeProvider().removeListener(_onTheme);
+    super.dispose();
   }
 
   Future<void> _loadGoals() async {

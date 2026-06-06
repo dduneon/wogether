@@ -5,6 +5,7 @@ import '../../api/auth_api.dart';
 import '../../utils/auth_store.dart';
 import '../../utils/fcm_service.dart';
 import '../../utils/theme.dart';
+import '../../utils/theme_provider.dart';
 import '../../widgets/w_card.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -18,6 +19,20 @@ class _LoginScreenState extends State<LoginScreen> {
   final _usernameCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ThemeProvider().addListener(_onTheme);
+  }
+
+  void _onTheme() { if (mounted) setState(() {}); }
+
+  @override
+  void dispose() {
+    ThemeProvider().removeListener(_onTheme);
+    super.dispose();
+  }
 
   Future<void> _login() async {
     setState(() => _loading = true);
