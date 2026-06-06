@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "434558860138",
+    "project_id": "wogether-ebbdc",
+    "storage_bucket": "wogether-ebbdc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:434558860138:android:56de43dec6587d60db0313",
+        "android_client_info": {
+          "package_name": "com.dduneon.wogether"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC0vIjxpr8ogrHztQQXvoCkqUb8pht5544"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
