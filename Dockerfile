@@ -12,6 +12,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
+COPY migrations/ ./migrations/
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
 RUN mkdir -p static/uploads
