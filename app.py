@@ -915,6 +915,61 @@ def api_dashboard():
     })
 
 
+@app.route('/api/me/workout-calendar', methods=['GET'])
+@token_required
+def api_workout_calendar():
+    """월별 운동 기록 달력 — 날짜별 로그 + 연속 운동 스트릭"""
+    import calendar as cal_mod
+    user = request.api_user
+    now_kst = kst_now()
+    year = request.args.get('year', type=int) or now_kst.year
+    month = request.args.get('month', type=int) or now_kst.month
+
+    # 해당 월 범위 (KST → UTC)
+    last_day = cal_mod.monthrange(year, month)[1]
+    month_start_utc = datetime(year, month, 1) - timedelta(hours=9)
+    month_end_utc = datetime(year, month, last_day, 23, 59, 59) - timedelta(hours=9)
+
+    logs = WorkoutLog.query.filter(
+        WorkoutLog.user_id == user.id,
+        WorkoutLog.timestamp >= month_start_utc,
+        WorkoutLog.timestamp <= month_end_utc,
+    ).order_by(WorkoutLog.timestamp.asc()).all()
+
+    from collections import defaultdict
+    logs_by_date = defaultdict(list)
+    for log in logs:
+        kst_date = (log.timestamp + timedelta(hours=9)).strftime('%Y-%m-%d')
+        d = log.to_dict()
+        d['crew_name'] = log.crew.name if log.crew else None
+        d['representative_image_url'] = log.representative_image_url
+        logs_by_date[kst_date].append(d)
+
+    # 전체 로그로 스트릭 계산 (월 무관)
+    all_logs = WorkoutLog.query.filter_by(user_id=user.id)\
+        .order_by(WorkoutLog.timestamp.desc()).all()
+    logged_days = sorted({
+        (log.timestamp + timedelta(hours=9)).date()
+        for log in all_logs
+    }, reverse=True)
+
+    today_kst = now_kst.date()
+    streak = 0
+    check = today_kst
+    for d in logged_days:
+        if d == check:
+            streak += 1
+            check -= timedelta(days=1)
+        elif d < check:
+            break
+
+    return jsonify({
+        'workout_dates': list(logs_by_date.keys()),
+        'logs_by_date': dict(logs_by_date),
+        'streak': streak,
+    })
+
+
 @app.route('/api/logs/<int:log_id>', methods=['DELETE'])
 @token_required
 def api_delete_log(log_id):

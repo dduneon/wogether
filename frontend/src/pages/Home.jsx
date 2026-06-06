@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import client from '../api/client'
 import { kstShort } from '../utils/time'
+import WorkoutCalendar from '../components/WorkoutCalendar'
 
 export default function Home() {
   const { user } = useAuth()
@@ -50,48 +51,55 @@ export default function Home() {
         )}
       </div>
 
-      {/* 주간 요약 카드 */}
-      <div className="week-summary-card fade-up-1">
-        <div className="week-summary-left">
-          <div className="week-summary-label">이번 주 내 인증</div>
-          <div className="week-summary-count">
-            {total_logs_this_week}<span className="week-summary-unit">회</span>
+      {/* 달력 + 주간 요약 2열 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }} className="home-two-col">
+        <WorkoutCalendar />
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* 주간 요약 카드 */}
+          <div className="week-summary-card fade-up-1">
+            <div className="week-summary-left">
+              <div className="week-summary-label">이번 주 내 인증</div>
+              <div className="week-summary-count">
+                {total_logs_this_week}<span className="week-summary-unit">회</span>
+              </div>
+            </div>
+            <div className="week-summary-divider" />
+            <div className="week-summary-right">
+              {quick_crew_id ? (
+                <>
+                  <div className="week-summary-label">오늘 운동했나요?</div>
+                  <Link to={`/crew/${quick_crew_id}/log/create`} className="btn btn-primary btn-sm" style={{ marginTop: 8 }}>
+                    📸 바로 인증하기
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <div className="week-summary-label">아직 크루가 없어요</div>
+                  <Link to="/crew/create" className="btn btn-secondary btn-sm" style={{ marginTop: 8 }}>
+                    + 크루 만들기
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* 크루 참여 */}
+          <div className="card join-card fade-up-2">
+            <form onSubmit={joinCrew} className="join-input-row">
+              <input
+                type="text"
+                placeholder="초대코드로 크루 참여…"
+                value={inviteCode}
+                onChange={e => setInviteCode(e.target.value)}
+              />
+              <button type="submit" className="btn btn-primary btn-sm" disabled={joining}>
+                {joining ? '…' : '참여'}
+              </button>
+            </form>
+            <Link to="/crew/create" className="btn btn-secondary btn-sm">+ 새 크루</Link>
           </div>
         </div>
-        <div className="week-summary-divider" />
-        <div className="week-summary-right">
-          {quick_crew_id ? (
-            <>
-              <div className="week-summary-label">오늘 운동했나요?</div>
-              <Link to={`/crew/${quick_crew_id}/log/create`} className="btn btn-primary btn-sm" style={{ marginTop: 8 }}>
-                📸 바로 인증하기
-              </Link>
-            </>
-          ) : (
-            <>
-              <div className="week-summary-label">아직 크루가 없어요</div>
-              <Link to="/crew/create" className="btn btn-secondary btn-sm" style={{ marginTop: 8 }}>
-                + 크루 만들기
-              </Link>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* 크루 참여 */}
-      <div className="card join-card fade-up-2">
-        <form onSubmit={joinCrew} className="join-input-row">
-          <input
-            type="text"
-            placeholder="초대코드로 크루 참여…"
-            value={inviteCode}
-            onChange={e => setInviteCode(e.target.value)}
-          />
-          <button type="submit" className="btn btn-primary btn-sm" disabled={joining}>
-            {joining ? '…' : '참여'}
-          </button>
-        </form>
-        <Link to="/crew/create" className="btn btn-secondary btn-sm">+ 새 크루</Link>
       </div>
 
       <div className="section-label fade-up-3">내 크루 {crews_data.length}</div>

@@ -5,8 +5,10 @@ import '../../api/crew_api.dart';
 import '../../api/dashboard_api.dart';
 import '../../utils/auth_store.dart';
 import '../../utils/theme.dart';
+import '../../utils/theme_provider.dart';
 import '../../widgets/w_card.dart';
 import '../../widgets/w_app_bar.dart';
+import '../../widgets/workout_calendar.dart';
 
 class CrewListScreen extends StatefulWidget {
   const CrewListScreen({super.key});
@@ -22,7 +24,16 @@ class _CrewListScreenState extends State<CrewListScreen> {
   @override
   void initState() {
     super.initState();
+    ThemeProvider().addListener(_onTheme);
     _load();
+  }
+
+  void _onTheme() { if (mounted) setState(() {}); }
+
+  @override
+  void dispose() {
+    ThemeProvider().removeListener(_onTheme);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -99,7 +110,7 @@ class _CrewListScreenState extends State<CrewListScreen> {
               color: WColors.purple,
               backgroundColor: WColors.bg2,
               onRefresh: _load,
-              child: _crews.isEmpty ? _buildEmpty() : _buildContent(),
+              child: _buildContent(),
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showFabMenu,
@@ -111,12 +122,19 @@ class _CrewListScreenState extends State<CrewListScreen> {
   }
 
   Widget _buildContent() {
+    final crewCount = _crews.length;
+    final totalItems = 2 + (crewCount > 0 ? crewCount : 1); // header + calendar + crews (or empty)
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-      itemCount: _crews.length + 1,
+      itemCount: totalItems,
       itemBuilder: (ctx, i) {
         if (i == 0) return _buildWeeklySummary();
-        final data = _crews[i - 1] as Map;
+        if (i == 1) return const Padding(
+          padding: EdgeInsets.only(top: 12),
+          child: WorkoutCalendarWidget(),
+        );
+        if (crewCount == 0) return _buildEmptyCrews();
+        final data = _crews[i - 2] as Map;
         final crew = data['crew'] as Map;
         return Padding(
           padding: const EdgeInsets.only(top: 12),
@@ -257,10 +275,12 @@ class _CrewListScreenState extends State<CrewListScreen> {
     );
   }
 
-  Widget _buildEmpty() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
+  Widget _buildEmptyCrews() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: Center(
+        child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -292,6 +312,7 @@ class _CrewListScreenState extends State<CrewListScreen> {
               label: const Text('코드로 참가'),
             ),
           ],
+        ),
         ),
       ),
     );

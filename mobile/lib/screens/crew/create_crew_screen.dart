@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../api/crew_api.dart';
+import '../../utils/theme_provider.dart';
 import '../../widgets/w_app_bar.dart';
 
 class CreateCrewScreen extends StatefulWidget {
@@ -15,12 +16,26 @@ class _CreateCrewScreenState extends State<CreateCrewScreen> {
   final _descCtrl = TextEditingController();
   bool _loading = false;
 
+  @override
+  void initState() {
+    super.initState();
+    ThemeProvider().addListener(_onTheme);
+  }
+
+  void _onTheme() { if (mounted) setState(() {}); }
+
+  @override
+  void dispose() {
+    ThemeProvider().removeListener(_onTheme);
+    super.dispose();
+  }
+
   Future<void> _create() async {
     if (_nameCtrl.text.trim().isEmpty) return;
     setState(() => _loading = true);
     try {
       final res = await CrewApi.createCrew(_nameCtrl.text.trim(), _descCtrl.text.trim());
-      if (mounted) context.go('/crew/${res['id']}');
+      if (mounted) context.pushReplacement('/crew/${res['id']}');
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('크루 생성에 실패했어요.')));

@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import '../utils/theme.dart';
 import '../utils/theme_provider.dart';
 
@@ -30,7 +31,7 @@ AppBar wAppBar({
   bool showBackButton = true,
   PreferredSizeWidget? bottom,
 }) {
-  final canPop = showBackButton && Navigator.of(context).canPop();
+  final canPop = showBackButton && (Navigator.of(context).canPop() || GoRouter.of(context).canPop());
   return AppBar(
     backgroundColor: Colors.transparent,
     elevation: 0,
@@ -109,7 +110,7 @@ List<Widget> wLargeTitleHeader({
   bool gradientTitle = false,
   PreferredSizeWidget? bottom,
 }) {
-  final canPop = showBackButton && Navigator.of(context).canPop();
+  final canPop = showBackButton && (Navigator.of(context).canPop() || GoRouter.of(context).canPop());
 
   final smallTitle = Text(
     title,
@@ -188,7 +189,11 @@ class _WBackButton extends StatelessWidget {
     return GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
-        Navigator.of(context).pop();
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        } else {
+          GoRouter.of(context).pop();
+        }
       },
       child: Center(
         child: Container(
