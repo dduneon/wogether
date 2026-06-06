@@ -177,6 +177,51 @@ a{text-decoration:none;color:inherit}
 .crew-card-meta{display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--text-muted)}
 .crew-card-dot{width:5px;height:5px;border-radius:50%;background:var(--purple);box-shadow:0 0 6px var(--purple);flex-shrink:0}
 
+/* ── 스트릭 히어로 카드 ── */
+.streak-hero{display:flex;align-items:center;gap:0;background:linear-gradient(135deg,rgba(168,85,247,.14),rgba(34,211,238,.08));border:1px solid rgba(168,85,247,.35);border-radius:var(--radius);padding:20px 24px;margin-bottom:14px;box-shadow:var(--glow-p);gap:20px}
+.streak-hero-left{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.streak-fire{font-size:2rem;line-height:1}
+.streak-number{font-size:2.6rem;font-weight:700;font-family:'Space Mono',monospace;line-height:1;color:var(--text)}
+.streak-label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-top:2px}
+.streak-hero-right{flex:1;min-width:0}
+.week-dots-row{display:flex;gap:6px;margin-bottom:10px}
+.week-dot{width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg-3);display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;transition:all .2s}
+.week-dot-label{font-size:.58rem;font-weight:700;color:var(--text-dim);letter-spacing:.04em;text-transform:uppercase}
+.week-dot-done{background:rgba(168,85,247,.22);border-color:rgba(168,85,247,.5);box-shadow:0 0 8px rgba(168,85,247,.2)}
+.week-dot-done .week-dot-label{color:var(--purple-l)}
+.week-dot-today{border-color:var(--cyan);box-shadow:0 0 8px rgba(34,211,238,.2)}
+.week-dot-done.week-dot-today{background:linear-gradient(135deg,rgba(168,85,247,.3),rgba(34,211,238,.2));border-color:var(--cyan)}
+.week-count-row{display:flex;align-items:baseline;gap:4px;flex-wrap:wrap}
+.week-count-num{font-size:1.5rem;font-weight:700;font-family:'Space Mono',monospace;color:var(--text)}
+.week-count-sep{font-size:1rem;color:var(--text-dim)}
+.week-count-goal{font-size:1.1rem;font-weight:600;font-family:'Space Mono',monospace;color:var(--text-muted)}
+.week-count-unit{font-size:.8rem;color:var(--text-muted);margin-left:2px}
+.week-remaining{font-size:.75rem;font-weight:700;color:var(--purple-l);background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.25);border-radius:999px;padding:2px 9px;margin-left:6px}
+/* ── 인증 CTA 히어로 ── */
+.cta-hero{display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,rgba(168,85,247,.18),rgba(34,211,238,.1)) !important;border:1px solid rgba(168,85,247,.45) !important;border-radius:var(--radius);padding:20px 22px;margin-bottom:0;box-shadow:var(--glow-p);cursor:pointer;text-decoration:none;color:var(--text);transition:all .22s ease}
+.cta-hero:hover{transform:translateY(-2px);box-shadow:0 10px 36px rgba(0,0,0,.4),var(--glow-p);border-color:rgba(168,85,247,.7) !important}
+/* ── 오늘 인증 완료 상태 ── */
+.done-state-card{display:flex;align-items:center;gap:14px;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.25);border-radius:var(--radius);padding:16px 20px;margin-bottom:0}
+.done-check{font-size:1.8rem;flex-shrink:0}
+/* ── 팀원 아바타 ── */
+.member-avatar-row{display:flex;align-items:center;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.member-avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;flex-shrink:0;transition:all .2s;cursor:default}
+.member-avatar-active{background:rgba(34,197,94,.2);border:2px solid rgba(34,197,94,.7);color:#4ade80}
+.member-avatar-idle{background:var(--bg-3);border:2px solid var(--border);color:var(--text-muted)}
+.member-avatar-me{box-shadow:0 0 0 2px var(--purple)}
+/* ── 크루 선택 모달 ── */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .18s ease}
+.crew-picker-sheet{background:var(--bg-2);border:1px solid var(--border);border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:0 0 32px;animation:slideUp .22s ease}
+.crew-picker-handle{width:36px;height:4px;border-radius:2px;background:var(--border-h);margin:12px auto 0}
+.crew-picker-title{font-size:1rem;font-weight:700;color:var(--text);padding:16px 24px 12px}
+.crew-picker-list{display:flex;flex-direction:column;gap:2px;padding:0 12px}
+.crew-picker-item{display:flex;align-items:center;gap:14px;padding:14px 14px;border-radius:12px;background:transparent;border:none;cursor:pointer;transition:background .15s;width:100%}
+.crew-picker-item:hover{background:var(--bg-3)}
+.crew-picker-icon{width:40px;height:40px;border-radius:12px;background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.3);display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:700;color:var(--purple-l);flex-shrink:0}
+@keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+/* ── 미니 피드 아바타 ── */
+.feed-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,rgba(168,85,247,.3),rgba(34,211,238,.2));border:1px solid rgba(168,85,247,.35);display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;color:var(--purple-l);flex-shrink:0}
 .crew-hero-name{font-size:clamp(2rem,5vw,3.5rem);font-weight:700;letter-spacing:-.03em;line-height:1;margin-bottom:8px}
 .crew-hero-desc{color:var(--text-muted);font-size:.95rem;margin-bottom:4px}
 .crew-hero-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
@@ -244,6 +289,7 @@ a{text-decoration:none;color:inherit}
 .sns-multi-img.cols-3{grid-template-columns:1fr 1fr 1fr}
 .sns-multi-img img{width:100%;height:240px;object-fit:cover;display:block}
 
+.cl-section-label{font-size:.78rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
 .composer-wrap{min-height:calc(100vh - 64px);display:flex;align-items:flex-start;justify-content:center;padding:24px 16px}
 .composer-box{width:100%;max-width:520px}
 .composer-photo-area{border:2px dashed var(--border-h);border-radius:var(--radius);min-height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;background:var(--bg-2)}
@@ -306,4 +352,4 @@ a{text-decoration:none;color:inherit}
 #theme-color-picker,#theme-bg-picker{width:36px;height:36px;border-radius:8px;border:1px solid var(--border-h);padding:2px;background:var(--bg-3);cursor:pointer}
 .theme-custom-hex{font-family:'Space Mono',monospace;font-size:.82rem;color:var(--text-muted)}
 
-@media(max-width:768px){.home-two-col{grid-template-columns:1fr!important}}
+@media(max-width:768px){.home-two-col{grid-template-columns:1fr!important}.streak-hero{flex-direction:column;align-items:flex-start;gap:16px}.streak-hero-left{gap:10px}.streak-number{font-size:2rem}.week-dot{width:28px;height:28px}.week-dots-row{gap:4px}}

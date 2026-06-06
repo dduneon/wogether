@@ -464,26 +464,34 @@ def push_notification(recipient_id, message, sender_id=None, crew_id=None, n_typ
 
 def _send_fcm(recipient_id, message, n_type='nudge'):
     """FCM 푸시 알림 발송. 토큰이 없거나 Firebase 미설정이면 조용히 스킵."""
+    import logging
+    if not firebase_admin._apps:
+        logging.warning('[FCM] Firebase 미초기화 — 자격증명 파일 확인 필요')
+        return
+    recipient = User.query.get(recipient_id)
+    if not recipient or not recipient.fcm_token:
+        logging.warning(f'[FCM] 토큰 없음 — user_id={recipient_id}')
+        return
+    title_map = {
+        'nudge': '👉 운동하라고 콕!',
+        'goal_request': '🎯 목표 승인 요청',
+        'goal_approved': '🏆 목표가 승인됐어요',
+        'join': '🤝 새 크루원',
+    }
+    title = title_map.get(n_type, '🔔 Wogether')
     try:
-        if not firebase_admin._apps:
-            return
-        recipient = User.query.get(recipient_id)
-        if not recipient or not recipient.fcm_token:
-            return
-        title_map = {
-            'nudge': '👉 운동하라고 콕!',
-            'goal_request': '🎯 목표 승인 요청',
-            'goal_approved': '🏆 목표가 승인됐어요',
-            'join': '🤝 새 크루원',
-        }
-        title = title_map.get(n_type, '🔔 Wogether')
         fcm_messaging.send(fcm_messaging.Message(
             token=recipient.fcm_token,
             notification=fcm_messaging.Notification(title=title, body=message),
             android=fcm_messaging.AndroidConfig(priority='high'),
         ))
-    except Exception:
-        pass
+        logging.info(f'[FCM] 발송 성공 — user_id={recipient_id}, type={n_type}')
+    except Exception as e:
+        logging.error(f'[FCM] 발송 실패 — user_id={recipient_id}, error={e}')
+        # 토큰 만료/유효하지 않은 경우 DB에서 제거
+        if 'registration-token-not-registered' in str(e) or 'invalid-registration-token' in str(e):
+            recipient.fcm_token = None
+            db.session.commit()
 
 
 # --- 파일 저장 헬퍼 ---
@@ -860,6 +868,8 @@ def api_dashboard():
     user = request.api_user
     crews = user.crews
     start_utc, end_utc = week_range_kst()
+    now_kst = kst_now()
+    today_kst = now_kst.date()
     unread = Notification.query.filter_by(recipient_id=user.id, is_read=False).count()
 
     total_logs_this_week = WorkoutLog.query.filter(
@@ -872,14 +882,93 @@ def api_dashboard():
         .order_by(WorkoutLog.timestamp.desc()).first()
     quick_crew_id = (latest_log.crew_id if latest_log else (crews[0].id if crews else None))
 
+    # 이번 주 월~일 도트 (오늘 KST 기준)
+    week_start_kst = today_kst - timedelta(days=today_kst.weekday())  # 이번 주 월요일
+    my_week_logs = WorkoutLog.query.filter(
+        WorkoutLog.user_id == user.id,
+        WorkoutLog.timestamp >= start_utc,
+        WorkoutLog.timestamp < end_utc,
+    ).all()
+    logged_days_this_week = {
+        (log.timestamp + timedelta(hours=9)).date()
+        for log in my_week_logs
+    }
+    week_dots = [
+        (week_start_kst + timedelta(days=i)) in logged_days_this_week
+        for i in range(7)
+    ]
+
+    # 오늘 인증 여부
+    today_start_utc = datetime(today_kst.year, today_kst.month, today_kst.day) - timedelta(hours=9)
+    today_end_utc = today_start_utc + timedelta(days=1)
+    today_logged = WorkoutLog.query.filter(
+        WorkoutLog.user_id == user.id,
+        WorkoutLog.timestamp >= today_start_utc,
+        WorkoutLog.timestamp < today_end_utc,
+    ).first() is not None
+
+    # 스트릭 계산
+    all_logs = WorkoutLog.query.filter_by(user_id=user.id)\
+        .order_by(WorkoutLog.timestamp.desc()).all()
+    logged_days_sorted = sorted({
+        (log.timestamp + timedelta(hours=9)).date()
+        for log in all_logs
+    }, reverse=True)
+    streak = 0
+    check = today_kst
+    for d in logged_days_sorted:
+        if d == check:
+            streak += 1
+            check -= timedelta(days=1)
+        elif d < check:
+            break
+
+    # 이번 주 목표 총 횟수 (전체 크루 승인된 목표 합산)
+    all_my_goals = Goal.query.filter(
+        Goal.user_id == user.id,
+        Goal.status == 'approved',
+    ).all()
+    total_goal_count = sum(g.frequency_per_week for g in all_my_goals)
+    goal_remaining = max(0, total_goal_count - total_logs_this_week)
+
+    # 미니 소셜 피드 — 내가 속한 모든 크루의 최근 운동 로그 5개
+    crew_ids = [c.id for c in crews]
+    recent_feed = []
+    if crew_ids:
+        feed_logs = WorkoutLog.query.filter(
+            WorkoutLog.crew_id.in_(crew_ids),
+            WorkoutLog.user_id != user.id,
+        ).order_by(WorkoutLog.timestamp.desc()).limit(5).all()
+        for log in feed_logs:
+            delta = now_kst - (log.timestamp + timedelta(hours=9))
+            total_s = int(delta.total_seconds())
+            if total_s < 3600:
+                time_ago = f"{total_s // 60}분 전"
+            elif total_s < 86400:
+                time_ago = f"{total_s // 3600}시간 전"
+            else:
+                time_ago = f"{total_s // 86400}일 전"
+            recent_feed.append({
+                'log_id': log.id,
+                'user_id': log.user_id,
+                'nickname': log.author.nickname,
+                'crew_id': log.crew_id,
+                'crew_name': log.crew.name if log.crew else '',
+                'caption': log.caption,
+                'time_ago': time_ago,
+                'thumbnail_url': log.representative_image_url,
+            })
+
     crews_data = []
     for crew in crews:
         my_goals = Goal.query.filter_by(user_id=user.id, crew_id=crew.id, status='approved').all()
         if my_goals:
             percents = [g.progress_this_week()[2] for g in my_goals]
             my_pct = round(sum(percents) / len(percents))
+            crew_goal_remaining = max(0, sum(g.frequency_per_week for g in my_goals) - sum(g.progress_this_week()[0] for g in my_goals))
         else:
             my_pct = 0
+            crew_goal_remaining = 0
 
         crew_logs_count = WorkoutLog.query.filter(
             WorkoutLog.crew_id == crew.id,
@@ -899,18 +988,42 @@ def api_dashboard():
             if not g.approvals.filter_by(approver_id=user.id).first()
         )
 
+        # 팀원 아바타 + 오늘 인증 여부
+        members_info = []
+        for member in crew.members:
+            member_logged_today = WorkoutLog.query.filter(
+                WorkoutLog.user_id == member.id,
+                WorkoutLog.crew_id == crew.id,
+                WorkoutLog.timestamp >= today_start_utc,
+                WorkoutLog.timestamp < today_end_utc,
+            ).first() is not None
+            members_info.append({
+                'id': member.id,
+                'nickname': member.nickname,
+                'logged_today': member_logged_today,
+                'is_me': member.id == user.id,
+            })
+
         crews_data.append({
             'crew': crew.to_dict(),
             'my_pct': my_pct,
+            'crew_goal_remaining': crew_goal_remaining,
             'crew_logs_count': crew_logs_count,
             'last_log_timestamp': last_log.timestamp.isoformat() + "Z" if last_log else None,
             'pending_count': pending_count,
+            'members': members_info,
         })
 
     return jsonify({
         'unread': unread,
         'total_logs_this_week': total_logs_this_week,
+        'total_goal_count': total_goal_count,
+        'goal_remaining': goal_remaining,
         'quick_crew_id': quick_crew_id,
+        'streak': streak,
+        'week_dots': week_dots,
+        'today_logged': today_logged,
+        'recent_feed': recent_feed,
         'crews_data': crews_data,
     })
 
