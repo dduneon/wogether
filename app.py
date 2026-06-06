@@ -18,6 +18,8 @@ from PIL import Image, ImageOps
 from io import BytesIO
 from minio import Minio
 from minio.error import S3Error
+import firebase_admin
+from firebase_admin import credentials, messaging as fcm_messaging
 
 # =====================================================================
 # Wogether (워게더) - 친구들과 크루를 맺고, 목표를 세우고, 운동을 인증하고,
@@ -65,6 +67,18 @@ def _ensure_bucket():
         minio_client.make_bucket(MINIO_BUCKET)
 
 db = SQLAlchemy(app)
+
+# Firebase Admin 초기화
+_firebase_cred_path = os.environ.get('FIREBASE_CREDENTIALS', 'firebase-credentials.json')
+if os.path.exists(_firebase_cred_path):
+    firebase_admin.initialize_app(credentials.Certificate(_firebase_cred_path))
+else:
+    # 환경변수로 JSON 내용을 직접 전달하는 경우
+    import json as _json
+    _firebase_cred_env = os.environ.get('FIREBASE_CREDENTIALS_JSON')
+    if _firebase_cred_env:
+        _cred_dict = _json.loads(_firebase_cred_env)
+        firebase_admin.initialize_app(credentials.Certificate(_cred_dict))
 
 _initialized = False
 
@@ -140,6 +154,7 @@ class User(UserMixin, db.Model):
     nickname = db.Column(db.String(80), nullable=False)
     password_hash = db.Column(db.String(256))
     api_token = db.Column(db.String(64), unique=True, index=True)  # 안드로이드 앱 인증용
+    fcm_token = db.Column(db.String(256), nullable=True)           # FCM 푸시 토큰
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     memberships = db.relationship('CrewMembership', backref='user', lazy='dynamic',
@@ -478,7 +493,34 @@ def push_notification(recipient_id, message, sender_id=None, crew_id=None, n_typ
         crew_id=crew_id, type=n_type, message=message,
     )
     db.session.add(noti)
+
+    # FCM 푸시 발송
+    _send_fcm(recipient_id, message, n_type)
     return noti
+
+
+def _send_fcm(recipient_id, message, n_type='nudge'):
+    """FCM 푸시 알림 발송. 토큰이 없거나 Firebase 미설정이면 조용히 스킵."""
+    try:
+        if not firebase_admin._apps:
+            return
+        recipient = User.query.get(recipient_id)
+        if not recipient or not recipient.fcm_token:
+            return
+        title_map = {
+            'nudge': '👉 운동하라고 콕!',
+            'goal_request': '🎯 목표 승인 요청',
+            'goal_approved': '🏆 목표가 승인됐어요',
+            'join': '🤝 새 크루원',
+        }
+        title = title_map.get(n_type, '🔔 Wogether')
+        fcm_messaging.send(fcm_messaging.Message(
+            token=recipient.fcm_token,
+            notification=fcm_messaging.Notification(title=title, body=message),
+            android=fcm_messaging.AndroidConfig(priority='high'),
+        ))
+    except Exception:
+        pass
 
 
 # --- 파일 저장 헬퍼 ---
@@ -1081,6 +1123,18 @@ def api_me():
     return jsonify(request.api_user.to_dict())
 
 
+@app.route('/api/fcm-token', methods=['POST'])
+@token_required
+def api_fcm_token():
+    user = request.api_user
+    data = request.get_json(force=True)
+    token = data.get('token', '').strip()
+    if token:
+        user.fcm_token = token
+        db.session.commit()
+    return jsonify({'ok': True})
+
+
 @app.route('/api/crews', methods=['GET', 'POST'])
 @token_required
 def api_crews():
@@ -1281,6 +1335,19 @@ def api_logs(crew_id):
         _check_and_record_streak(crew.id, user.id)
 
         db.session.commit()
+
+        # 크루원들에게 운동 인증 알림 발송 (본인 제외)
+        for m in crew.memberships:
+            if m.user_id != user.id:
+                push_notification(
+                    m.user_id,
+                    f'{user.nickname}님이 운동 인증을 올렸어요 💪',
+                    sender_id=user.id,
+                    crew_id=crew.id,
+                    n_type='log',
+                )
+        db.session.commit()
+
         return jsonify(log.to_dict()), 201
 
     logs = crew.workout_logs.order_by(WorkoutLog.timestamp.desc()).limit(50).all()
