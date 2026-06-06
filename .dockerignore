@@ -6,6 +6,6 @@ __pycache__
 *.pyc
 *.pyo
 backend/
-frontend/
+frontend/node_modules/
 static/uploads/
 *.md
