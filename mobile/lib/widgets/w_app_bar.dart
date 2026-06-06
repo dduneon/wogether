@@ -65,6 +65,7 @@ AppBar wAppBar({
 AppBar wHomeAppBar({
   required BuildContext context,
   List<Widget>? actions,
+  PreferredSizeWidget? bottom,
 }) {
   return AppBar(
     backgroundColor: Colors.transparent,
@@ -73,7 +74,7 @@ AppBar wHomeAppBar({
     surfaceTintColor: Colors.transparent,
     automaticallyImplyLeading: false,
     flexibleSpace: _frostedBg(),
-    bottom: _bottomBorder(),
+    bottom: bottom ?? _bottomBorder(),
     titleSpacing: 0,
     centerTitle: true,
     title: ShaderMask(

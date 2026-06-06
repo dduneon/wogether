@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -71,33 +72,54 @@ class _CrewDetailScreenState extends State<CrewDetailScreen> with SingleTickerPr
           ),
         ],
       ),
+      floatingActionButton: GestureDetector(
+        onTap: _showAddMenu,
+        child: Container(
+          width: 52, height: 52,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: WColors.gradientPurplePink,
+            boxShadow: [
+              BoxShadow(color: WColors.purple.withValues(alpha: 0.5), blurRadius: 16, spreadRadius: 1),
+            ],
+          ),
+          child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
+        ),
+      ),
       body: _loading
           ? Center(child: CircularProgressIndicator(color: WColors.purple))
-          : TabBarView(
-              controller: _tabCtrl,
+          : Stack(
               children: [
-                RefreshIndicator(
-                  color: WColors.purple,
-                  backgroundColor: WColors.bg2,
-                  onRefresh: _load,
-                  child: _buildFeedTab(),
+                TabBarView(
+                  controller: _tabCtrl,
+                  children: [
+                    RefreshIndicator(
+                      color: WColors.purple,
+                      backgroundColor: WColors.bg2,
+                      onRefresh: _load,
+                      child: _buildFeedTab(),
+                    ),
+                    RefreshIndicator(
+                      color: WColors.purple,
+                      backgroundColor: WColors.bg2,
+                      onRefresh: _load,
+                      child: _buildStatusTab(),
+                    ),
+                  ],
                 ),
-                RefreshIndicator(
-                  color: WColors.purple,
-                  backgroundColor: WColors.bg2,
-                  onRefresh: _load,
-                  child: _buildStatusTab(),
+                Positioned(
+                  bottom: 28, left: 0, right: 0,
+                  child: Center(child: _buildFloatingTab()),
                 ),
               ],
             ),
-      bottomNavigationBar: _buildBottomBar(),
     );
   }
 
   // ── 인증 피드 탭 ─────────────────────────────────────────────────
   Widget _buildFeedTab() {
     return ListView(
-      padding: const EdgeInsets.only(top: 12, bottom: 100),
+      padding: const EdgeInsets.only(top: 12, bottom: 120),
       children: [
         // 히어로 헤더
         _buildHero(),
@@ -426,7 +448,7 @@ class _CrewDetailScreenState extends State<CrewDetailScreen> with SingleTickerPr
       return Center(child: Text('멤버가 없어요.', style: TextStyle(color: WColors.textMuted)));
     }
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
       itemCount: _members.length,
       itemBuilder: (ctx, i) => _buildMemberCard(_members[i]),
     );
@@ -590,62 +612,32 @@ class _CrewDetailScreenState extends State<CrewDetailScreen> with SingleTickerPr
     } catch (e) {}
   }
 
-  Widget _buildBottomBar() {
-    return AnimatedBuilder(
-      animation: _tabCtrl,
+  Widget _buildFloatingTab() {
+    return ListenableBuilder(
+      listenable: _tabCtrl,
       builder: (context, _) {
-        final current = _tabCtrl.index;
-        return Container(
-          decoration: BoxDecoration(
-            color: WColors.bg2,
-            border: Border(top: BorderSide(color: WColors.border, width: 0.5)),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 20, offset: const Offset(0, -4))],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: SafeArea(
-            child: SizedBox(
-              height: 64,
-              child: Row(children: [
-                // 인증 피드 탭
-                Expanded(child: _bottomTab(
-                  icon: Icons.photo_library_outlined,
-                  activeIcon: Icons.photo_library,
-                  label: '인증 피드',
-                  index: 0,
-                  current: current,
-                )),
-
-                // 가운데 + 버튼
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: GestureDetector(
-                    onTap: _showAddMenu,
-                    child: Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: WColors.gradientPurplePink,
-                        boxShadow: [
-                          BoxShadow(color: WColors.purple.withValues(alpha: 0.5), blurRadius: 16, spreadRadius: 1),
-                        ],
-                      ),
-                      child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
-                    ),
-                  ),
-                ),
-
-                // 현황 탭
-                Expanded(child: _bottomTab(
-                  icon: Icons.bar_chart_outlined,
-                  activeIcon: Icons.bar_chart,
-                  label: '현황',
-                  index: 1,
-                  current: current,
-                )),
-              ]),
-            ),
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: WColors.bg2.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 32, offset: const Offset(0, 8)),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 2)),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _floatingTabItem(0, '인증 피드'),
+                  _floatingTabItem(1, '현황'),
+                ],
+              ),
             ),
           ),
         );
@@ -653,45 +645,32 @@ class _CrewDetailScreenState extends State<CrewDetailScreen> with SingleTickerPr
     );
   }
 
-  Widget _bottomTab({
-    required IconData icon,
-    required IconData activeIcon,
-    required String label,
-    required int index,
-    required int current,
-  }) {
-    final isActive = current == index;
+  Widget _floatingTabItem(int index, String label) {
+    final active = _tabCtrl.index == index;
     return GestureDetector(
       onTap: () => _tabCtrl.animateTo(index),
-      behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              decoration: BoxDecoration(
-                color: isActive ? WColors.purple.withValues(alpha: 0.15) : Colors.transparent,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Icon(
-                isActive ? activeIcon : icon,
-                color: isActive ? WColors.purpleL : WColors.textMuted,
-                size: 22,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
-                color: isActive ? WColors.purpleL : WColors.textMuted,
-              ),
-            ),
-          ],
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 9),
+        decoration: BoxDecoration(
+          color: active ? WColors.purple.withValues(alpha: 0.22) : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          border: active ? Border.all(color: WColors.purple.withValues(alpha: 0.35)) : null,
+          boxShadow: active
+              ? [
+                  BoxShadow(color: WColors.purple.withValues(alpha: 0.25), blurRadius: 16),
+                  BoxShadow(color: WColors.purple.withValues(alpha: 0.15), blurRadius: 4),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+            color: active ? WColors.purpleL : WColors.textMuted,
+          ),
         ),
       ),
     );

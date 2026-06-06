@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +10,7 @@ import '../../utils/theme_provider.dart';
 import '../../widgets/w_card.dart';
 import '../../widgets/w_app_bar.dart';
 import '../../widgets/workout_calendar.dart';
+import 'create_crew_screen.dart';
 
 class CrewListScreen extends StatefulWidget {
   const CrewListScreen({super.key});
@@ -17,13 +19,16 @@ class CrewListScreen extends StatefulWidget {
   State<CrewListScreen> createState() => _CrewListScreenState();
 }
 
-class _CrewListScreenState extends State<CrewListScreen> {
+class _CrewListScreenState extends State<CrewListScreen>
+    with SingleTickerProviderStateMixin {
   Map<String, dynamic>? _dashboard;
   bool _loading = true;
+  late final TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     ThemeProvider().addListener(_onTheme);
     _load();
   }
@@ -32,6 +37,7 @@ class _CrewListScreenState extends State<CrewListScreen> {
 
   @override
   void dispose() {
+    _tabController.dispose();
     ThemeProvider().removeListener(_onTheme);
     super.dispose();
   }
@@ -59,36 +65,160 @@ class _CrewListScreenState extends State<CrewListScreen> {
 
   void _showJoinDialog() {
     final ctrl = TextEditingController();
-    showDialog(
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('크루 참가'),
-        content: TextField(
-          controller: ctrl,
-          decoration: const InputDecoration(labelText: '초대 코드 입력'),
-          style: TextStyle(color: WColors.text),
-          textCapitalization: TextCapitalization.characters,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
-          FilledButton(
-            onPressed: () async {
-              try {
-                final res = await CrewApi.joinCrew(ctrl.text.trim());
-                if (!ctx.mounted) return;
-                Navigator.pop(ctx);
-                if (mounted) context.push('/crew/${res['id']}');
-              } catch (e) {
-                if (!ctx.mounted) return;
-                Navigator.pop(ctx);
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('유효하지 않은 코드예요.')));
-              }
-            },
-            child: const Text('참가'),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: BoxDecoration(
+              color: WColors.bg2,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border(top: BorderSide(color: WColors.border)),
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 핸들
+                    Center(
+                      child: Container(
+                        width: 36, height: 4,
+                        margin: const EdgeInsets.only(bottom: 20),
+                        decoration: BoxDecoration(
+                          color: WColors.border,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+
+                    // 아이콘 + 타이틀
+                    Row(
+                      children: [
+                        Container(
+                          width: 44, height: 44,
+                          decoration: BoxDecoration(
+                            color: WColors.cyan.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(13),
+                            border: Border.all(color: WColors.cyan.withValues(alpha: 0.3)),
+                          ),
+                          child: Icon(Icons.group_add_outlined, color: WColors.cyan, size: 22),
+                        ),
+                        const SizedBox(width: 14),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('크루 참가',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: WColors.text)),
+                            Text('초대 코드를 입력해주세요',
+                                style: TextStyle(fontSize: 13, color: WColors.textMuted)),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // 코드 입력 필드
+                    Container(
+                      decoration: BoxDecoration(
+                        color: WColors.bg3,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: WColors.border),
+                      ),
+                      child: TextField(
+                        controller: ctrl,
+                        autofocus: true,
+                        textCapitalization: TextCapitalization.characters,
+                        style: TextStyle(
+                          color: WColors.text,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 4,
+                        ),
+                        textAlign: TextAlign.center,
+                        decoration: InputDecoration(
+                          hintText: 'XXXXXX',
+                          hintStyle: TextStyle(
+                            color: WColors.textDim,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 4,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 버튼 행
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              side: BorderSide(color: WColors.border),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                            child: Text('취소', style: TextStyle(color: WColors.textMuted, fontWeight: FontWeight.w600)),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [WColors.cyan, WColors.purple],
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: [
+                                BoxShadow(color: WColors.cyan.withValues(alpha: 0.35), blurRadius: 16),
+                              ],
+                            ),
+                            child: FilledButton(
+                              onPressed: () async {
+                                final code = ctrl.text.trim();
+                                if (code.isEmpty) return;
+                                try {
+                                  final res = await CrewApi.joinCrew(code);
+                                  if (!ctx.mounted) return;
+                                  Navigator.pop(ctx);
+                                  if (mounted) context.push('/crew/${res['id']}');
+                                } catch (e) {
+                                  if (!ctx.mounted) return;
+                                  Navigator.pop(ctx);
+                                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('유효하지 않은 코드예요.')));
+                                }
+                              },
+                              style: FilledButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                              child: const Text('참가하기', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -112,147 +242,236 @@ class _CrewListScreenState extends State<CrewListScreen> {
       ),
       body: _loading
           ? Center(child: CircularProgressIndicator(color: WColors.purple))
-          : RefreshIndicator(
-              color: WColors.purple,
-              backgroundColor: WColors.bg2,
-              onRefresh: _load,
-              child: _buildContent(),
+          : Stack(
+              children: [
+                TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildStatusTab(),
+                    _buildCrewTab(),
+                  ],
+                ),
+                Positioned(
+                  bottom: 28,
+                  left: 0, right: 0,
+                  child: Center(child: _buildFloatingTab()),
+                ),
+              ],
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showFabMenu,
-        backgroundColor: WColors.purple,
-        elevation: 0,
-        child: const Icon(Icons.add_rounded, color: Colors.white),
+    );
+  }
+
+  Widget _buildFloatingTab() {
+    return ListenableBuilder(
+      listenable: _tabController,
+      builder: (context, _) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: WColors.bg2.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 32, offset: const Offset(0, 8)),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 2)),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _floatingTabItem(0, '현황'),
+                  _floatingTabItem(1, '크루 목록'),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _floatingTabItem(int index, String label) {
+    final active = _tabController.index == index;
+    return GestureDetector(
+      onTap: () => _tabController.animateTo(index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 9),
+        decoration: BoxDecoration(
+          color: active ? WColors.purple.withValues(alpha: 0.22) : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: active
+              ? [
+                  BoxShadow(color: WColors.purple.withValues(alpha: 0.25), blurRadius: 16),
+                  BoxShadow(color: WColors.purple.withValues(alpha: 0.15), blurRadius: 4),
+                ]
+              : null,
+          border: active
+              ? Border.all(color: WColors.purple.withValues(alpha: 0.35))
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+            color: active ? WColors.purpleL : WColors.textMuted,
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildContent() {
+  Widget _buildStatusTab() {
     final user = AuthStore().user;
     final name = user?['nickname'] ?? user?['username'] ?? '';
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-      children: [
-        // ── 헤더 인사말 ──
-        Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: Row(
-            children: [
-              const Text('👋 ', style: TextStyle(fontSize: 14)),
-              Text('안녕하세요, ',
-                  style: TextStyle(fontSize: 15, color: WColors.textMuted)),
-              Text(name,
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: WColors.purpleL)),
-              Text('님', style: TextStyle(fontSize: 15, color: WColors.textMuted)),
-            ],
+    return RefreshIndicator(
+      color: WColors.purple,
+      backgroundColor: WColors.bg2,
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+        children: [
+          // ── 헤더 인사말 ──
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Row(
+              children: [
+                const Text('👋 ', style: TextStyle(fontSize: 14)),
+                Text('안녕하세요, ',
+                    style: TextStyle(fontSize: 15, color: WColors.textMuted)),
+                Text(name,
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: WColors.purpleL)),
+                Text('님', style: TextStyle(fontSize: 15, color: WColors.textMuted)),
+              ],
+            ),
           ),
-        ),
 
-        // ── 목표 승인 액션 카드 ──
-        if (_totalPending > 0) ...[
-          _PendingActionCard(
-            count: _totalPending,
-            onTap: () {
-              final target = _crews.firstWhere(
-                (d) => (((d as Map)['pending_count'] as int?) ?? 0) > 0,
-                orElse: () => _crews.first,
-              ) as Map;
-              context.push('/crew/${target['crew']['id']}');
-            },
+          // ── 목표 승인 액션 카드 ──
+          if (_totalPending > 0) ...[
+            _PendingActionCard(
+              count: _totalPending,
+              onTap: () {
+                final target = _crews.firstWhere(
+                  (d) => (((d as Map)['pending_count'] as int?) ?? 0) > 0,
+                  orElse: () => _crews.first,
+                ) as Map;
+                context.push('/crew/${target['crew']['id']}');
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // ── 스트릭 히어로 카드 ──
+          _StreakHeroCard(
+            streak: _streak,
+            weekDots: _weekDots,
+            totalLogs: _totalLogs,
+            totalGoal: _totalGoal,
+            goalRemaining: _goalRemaining,
           ),
           const SizedBox(height: 12),
-        ],
 
-        // ── 스트릭 히어로 카드 ──
-        _StreakHeroCard(
-          streak: _streak,
-          weekDots: _weekDots,
-          totalLogs: _totalLogs,
-          totalGoal: _totalGoal,
-          goalRemaining: _goalRemaining,
-        ),
-        const SizedBox(height: 12),
+          // ── 인증 CTA / 완료 상태 ──
+          if (_todayLogged)
+            _DoneStateCard(onExtraLog: _quickCrewId != null ? _showCrewPickerForLog : null)
+          else if (_quickCrewId != null)
+            _LogCTACard(crewCount: _crews.length, onTap: _showCrewPickerForLog)
+          else
+            const SizedBox.shrink(),
 
-        // ── 인증 CTA / 완료 상태 ──
-        if (_todayLogged)
-          _DoneStateCard(onExtraLog: _quickCrewId != null ? _showCrewPickerForLog : null)
-        else if (_quickCrewId != null)
-          _LogCTACard(crewCount: _crews.length, onTap: _showCrewPickerForLog)
-        else
-          const SizedBox.shrink(),
-
-        // ── 내 크루 목록 ──
-        if (_crews.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          _SectionLabel(label: '내 크루', count: _crews.length),
-          const SizedBox(height: 10),
-          ..._crews.asMap().entries.map((e) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _CrewCard(
-              data: e.value as Map,
-              crew: (e.value as Map)['crew'] as Map,
-              index: e.key,
-              onTap: () => context.push('/crew/${(e.value as Map)['crew']['id']}'),
+          // ── 미니 소셜 피드 ──
+          if (_recentFeed.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            _SectionLabel(label: '최근 팀 활동'),
+            const SizedBox(height: 10),
+            _MiniFeedCard(
+              items: _recentFeed,
+              onTap: (crewId) => context.push('/crew/$crewId'),
             ),
-          )),
-        ] else ...[
+          ],
+
+          // ── 운동 달력 ──
           const SizedBox(height: 24),
-          _buildEmptyCrews(),
-        ],
-
-        // ── 미니 소셜 피드 ──
-        if (_recentFeed.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          _SectionLabel(label: '최근 팀 활동'),
+          _SectionLabel(label: '운동 달력'),
           const SizedBox(height: 10),
-          _MiniFeedCard(
-            items: _recentFeed,
-            onTap: (crewId) => context.push('/crew/$crewId'),
-          ),
+          const WorkoutCalendarWidget(),
         ],
-
-        // ── 운동 달력 ──
-        const SizedBox(height: 24),
-        _SectionLabel(label: '운동 달력'),
-        const SizedBox(height: 10),
-        const WorkoutCalendarWidget(),
-      ],
+      ),
     );
   }
 
-  Widget _buildEmptyCrews() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: Column(
-          children: [
-            Container(
-              width: 72, height: 72,
-              decoration: BoxDecoration(
-                color: WColors.bg2, borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: WColors.borderH),
+  Widget _buildCrewTab() {
+    return RefreshIndicator(
+      color: WColors.purple,
+      backgroundColor: WColors.bg2,
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+        children: [
+          // ── 액션 버튼 행 ──
+          Row(
+            children: [
+              Expanded(
+                child: _CrewActionButton(
+                  icon: Icons.add_rounded,
+                  label: '크루 만들기',
+                  color: WColors.purple,
+                  onTap: () => showCreateCrewSheet(context).then((_) => _load()),
+                ),
               ),
-              child: const Center(child: Text('🏋️', style: TextStyle(fontSize: 32))),
-            ),
-            const SizedBox(height: 16),
-            Text('아직 크루가 없어요',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: WColors.text)),
-            const SizedBox(height: 8),
-            Text('크루를 만들거나 초대코드로 참가해보세요',
-                style: TextStyle(color: WColors.textMuted, fontSize: 13),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 24),
-            WGradientButton('크루 만들기', icon: Icons.add,
-                onPressed: () => context.push('/crew/create').then((_) => _load())),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _CrewActionButton(
+                  icon: Icons.group_add_outlined,
+                  label: '코드로 참가',
+                  color: WColors.cyan,
+                  onTap: _showJoinDialog,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          if (_crews.isNotEmpty) ...[
+            _SectionLabel(label: '내 크루', count: _crews.length),
             const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: _showJoinDialog,
-              icon: const Icon(Icons.group_add, size: 16),
-              label: const Text('코드로 참가'),
-            ),
-          ],
-        ),
+            ..._crews.asMap().entries.map((e) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _CrewCard(
+                data: e.value as Map,
+                crew: (e.value as Map)['crew'] as Map,
+                index: e.key,
+                onTap: () => context.push('/crew/${(e.value as Map)['crew']['id']}'),
+              ),
+            )),
+          ] else
+            _buildEmptyCrewsSimple(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyCrewsSimple() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: Column(
+        children: [
+          Text('🏋️', style: const TextStyle(fontSize: 40)),
+          const SizedBox(height: 12),
+          Text('아직 크루가 없어요',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: WColors.text)),
+          const SizedBox(height: 6),
+          Text('위 버튼으로 크루를 만들거나 참가해보세요',
+              style: TextStyle(color: WColors.textMuted, fontSize: 13),
+              textAlign: TextAlign.center),
+        ],
       ),
     );
   }
@@ -356,7 +575,7 @@ class _CrewListScreenState extends State<CrewListScreen> {
               title: const Text('크루 만들기', style: TextStyle(fontWeight: FontWeight.w600)),
               subtitle: Text('새로운 크루를 시작해요',
                   style: TextStyle(fontSize: 12, color: WColors.textMuted)),
-              onTap: () { Navigator.pop(ctx); context.push('/crew/create').then((_) => _load()); },
+              onTap: () { Navigator.pop(ctx); showCreateCrewSheet(context).then((_) => _load()); },
             ),
             ListTile(
               leading: Container(
@@ -1056,6 +1275,40 @@ class _NotificationButton extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 크루 탭 액션 버튼
+// ─────────────────────────────────────────────────────────────────────────────
+class _CrewActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  const _CrewActionButton({required this.icon, required this.label, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+          ],
+        ),
+      ),
     );
   }
 }
