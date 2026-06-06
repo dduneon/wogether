@@ -8,6 +8,7 @@ import 'screens/crew/create_crew_screen.dart';
 import 'screens/log/create_log_screen.dart';
 import 'screens/goal/create_goal_screen.dart';
 import 'screens/notification/notification_screen.dart';
+import 'screens/settings/settings_screen.dart';
 
 final router = GoRouter(
   redirect: (context, state) {
@@ -42,5 +43,6 @@ final router = GoRouter(
           CreateGoalScreen(crewId: int.parse(state.pathParameters['id']!)),
     ),
     GoRoute(path: '/notifications', builder: (ctx, _) => const NotificationScreen()),
+    GoRoute(path: '/settings', builder: (ctx, _) => const SettingsScreen()),
   ],
 );

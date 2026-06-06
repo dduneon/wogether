@@ -7,7 +7,6 @@ import '../../utils/auth_store.dart';
 import '../../utils/theme.dart';
 import '../../widgets/w_card.dart';
 import '../../widgets/w_app_bar.dart';
-import '../../widgets/theme_settings_sheet.dart';
 
 class CrewListScreen extends StatefulWidget {
   const CrewListScreen({super.key});
@@ -83,12 +82,11 @@ class _CrewListScreenState extends State<CrewListScreen> {
         context: context,
         actions: [
           IconButton(
-            icon: const Icon(Icons.palette_outlined, size: 22),
+            icon: const Icon(Icons.settings_outlined, size: 22),
             color: WColors.textMuted,
-            tooltip: '테마 설정',
-            onPressed: () => showThemeSettingsSheet(context),
+            tooltip: '설정',
+            onPressed: () => context.push('/settings'),
           ),
-          _LogoutButton(),
           _NotificationButton(
             count: _unreadCount,
             onTap: () => context.push('/notifications').then((_) => _load()),
@@ -599,31 +597,6 @@ class _NotificationButton extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
-}
-
-// ── 로그아웃 버튼 ──────────────────────────────────────────────────────────
-class _LogoutButton extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      icon: Icon(Icons.logout, color: WColors.textMuted),
-      tooltip: '로그아웃',
-      onPressed: () async {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('로그아웃'),
-            content: const Text('정말 로그아웃할까요?'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('로그아웃')),
-            ],
-          ),
-        );
-        if (confirmed == true) await AuthStore().logout();
-      },
     );
   }
 }

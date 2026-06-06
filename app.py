@@ -512,21 +512,6 @@ def save_optimized_image(file):
 
 
 # =====================================================================
-# 3. React SPA 서빙
-# =====================================================================
-
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve_spa(path):
-    if path.startswith('api/'):
-        return jsonify({'error': 'not found'}), 404
-    full = os.path.join(FRONTEND_DIST, path)
-    if path and os.path.exists(full):
-        return send_from_directory(FRONTEND_DIST, path)
-    return send_from_directory(FRONTEND_DIST, 'index.html')
-
-
-
 # =====================================================================
 # 8. 안드로이드용 REST JSON API  (토큰 인증)
 # =====================================================================
@@ -989,6 +974,16 @@ def api_leave_crew(crew_id):
     db.session.delete(membership)
     db.session.commit()
     return jsonify({'ok': True})
+
+
+# --- React SPA 서빙 (catch-all — API 라우트보다 나중에 등록) ---
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_spa(path):
+    full = os.path.join(FRONTEND_DIST, path)
+    if path and os.path.exists(full):
+        return send_from_directory(FRONTEND_DIST, path)
+    return send_from_directory(FRONTEND_DIST, 'index.html')
 
 
 # --- 9. 앱 실행 ---
