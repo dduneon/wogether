@@ -561,10 +561,16 @@ class _StreakHeroCard extends StatelessWidget {
                                 color: WColors.text,
                                 fontFeatures: const [FontFeature.tabularFigures()]),
                           ),
-                          TextSpan(
-                            text: ' / ${totalGoal > 0 ? totalGoal : '—'} 회',
-                            style: TextStyle(fontSize: 13, color: WColors.textMuted),
-                          ),
+                          if (totalGoal > 0)
+                            TextSpan(
+                              text: ' / $totalGoal 회',
+                              style: TextStyle(fontSize: 13, color: WColors.textMuted),
+                            )
+                          else
+                            TextSpan(
+                              text: ' 회',
+                              style: TextStyle(fontSize: 13, color: WColors.textMuted),
+                            ),
                         ],
                       ),
                     ),

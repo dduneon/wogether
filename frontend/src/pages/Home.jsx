@@ -162,8 +162,12 @@ export default function Home() {
           </div>
           <div className="week-count-row">
             <span className="week-count-num">{total_logs_this_week}</span>
-            <span className="week-count-sep">/</span>
-            <span className="week-count-goal">{total_goal_count || '—'}</span>
+            {total_goal_count > 0 && (
+              <>
+                <span className="week-count-sep">/</span>
+                <span className="week-count-goal">{total_goal_count}</span>
+              </>
+            )}
             <span className="week-count-unit">회</span>
             {goal_remaining > 0 && (
               <span className="week-remaining">아직 {goal_remaining}번 더!</span>
