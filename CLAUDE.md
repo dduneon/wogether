@@ -23,19 +23,24 @@ cd frontend && npm install && npm run dev
 
 # React 빌드
 cd frontend && npm run build
+
+# Flutter 앱 (mobile/ 디렉토리)
+cd mobile && flutter run       # 연결된 Android 기기/에뮬레이터
+cd mobile && flutter build apk # APK 빌드
 ```
 
 DB 테이블은 첫 요청 시 `before_request`에서 자동 생성(`db.create_all()`). 로컬 개발 시 MariaDB와 MinIO가 필요하며, 환경변수로 연결 설정.
 
 ## Architecture
 
-코드베이스에 **두 가지 서버 구현이 공존**한다:
+코드베이스에 **네 가지 구현이 공존**한다:
 
 | | 경로 | 상태 |
 |---|---|---|
 | **웹 앱** | `app.py` (단일 파일) | 현재 운영 중 |
 | **API 서버** (리팩토링 중) | `backend/` 패키지 | WIP — `app.py`의 API 부분을 Blueprint로 분리한 것 |
 | **React SPA** | `frontend/` | WIP — `backend/`의 `/api/` 엔드포인트 소비 |
+| **Flutter 앱** | `mobile/` | Android 앱 — `app.py`의 `/api/` 엔드포인트 소비 |
 
 ### app.py 구조 (섹션별 주석으로 구분)
 
@@ -68,6 +73,28 @@ backend/
 ### frontend/ 구조
 
 React + Vite SPA. `src/api/client.js`는 axios 기반으로 `/api/` 호출, localStorage의 Bearer 토큰으로 인증. 401 시 자동 로그아웃.
+
+### mobile/ 구조
+
+Flutter Android 앱. `lib/api/client.dart`가 `app.py`의 `/api/` 엔드포인트를 호출하며, SharedPreferences에 Bearer 토큰을 저장. `lib/router.dart`에서 GoRouter로 화면 전환 관리.
+
+```bash
+# Flutter 앱 실행 (mobile/ 디렉토리에서)
+cd mobile && flutter run
+
+# APK 빌드
+cd mobile && flutter build apk
+```
+
+`mobile/lib/` 구조:
+```
+api/          # client.dart + 도메인별 API 파일 (auth, crew, goal, log, notification)
+models/       # 데이터 클래스
+screens/      # auth/, crew/, goal/, log/, notification/ 화면
+widgets/      # 공용 위젯
+router.dart   # GoRouter 라우팅
+main.dart
+```
 
 ## Data Model
 
