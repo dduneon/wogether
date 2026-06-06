@@ -217,5 +217,6 @@ __marimo__/
 *.bak
 utils/
 !frontend/src/utils/
+!mobile/lib/utils/
 static/uploads/
 firebase-credentials.json
