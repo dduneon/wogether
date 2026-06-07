@@ -18,6 +18,7 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-wogether}
       MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL}
       MINIO_SECURE: ${MINIO_SECURE:-false}
+      FIREBASE_CREDENTIALS_JSON: ${FIREBASE_CREDENTIALS_JSON}
 
   frontend:
     image: ghcr.io/dduneon/wogether-frontend:latest
