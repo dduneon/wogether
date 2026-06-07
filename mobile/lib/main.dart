@@ -45,7 +45,7 @@ class _WogetherAppState extends State<WogetherApp> {
         final themeMode = ThemeProvider().isLight ? ThemeMode.light : ThemeMode.dark;
         if (_showSplash) {
           return MaterialApp(
-            title: '워게더',
+            title: 'Wogether',
             theme: theme,
             themeMode: themeMode,
             debugShowCheckedModeBanner: false,
@@ -55,7 +55,7 @@ class _WogetherAppState extends State<WogetherApp> {
         return ListenableBuilder(
           listenable: AuthStore(),
           builder: (context, _) => MaterialApp.router(
-            title: '워게더',
+            title: 'Wogether',
             theme: theme,
             themeMode: themeMode,
             routerConfig: router,

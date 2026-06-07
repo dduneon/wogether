@@ -93,7 +93,7 @@ class _SplashScreenState extends State<SplashScreen>
                       shaderCallback: (bounds) =>
                           WColors.gradientPurpleCyan.createShader(bounds),
                       child: const Text(
-                        '워게더',
+                        'Wogether',
                         style: TextStyle(
                           fontSize: 36,
                           fontWeight: FontWeight.w800,
