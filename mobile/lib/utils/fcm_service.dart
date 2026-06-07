@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../api/client.dart';
@@ -65,8 +66,16 @@ class FcmService {
       }
     });
 
-    // FCM 토큰 서버에 저장
-    final token = await _fcm.getToken();
+    // FCM 토큰 서버에 저장 (iOS는 APNS 토큰 준비까지 대기)
+    String? token;
+    if (Platform.isIOS) {
+      for (var i = 0; i < 10; i++) {
+        final apns = await _fcm.getAPNSToken();
+        if (apns != null) break;
+        await Future.delayed(const Duration(seconds: 1));
+      }
+    }
+    token = await _fcm.getToken();
     if (token != null) await _saveToken(token);
 
     // 토큰 갱신 시 재저장
