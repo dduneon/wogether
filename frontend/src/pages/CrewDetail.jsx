@@ -12,6 +12,8 @@ export default function CrewDetail() {
   const [data, setData] = useState(null)
   const [tab, setTab] = useState('feed')
 
+  const nudgeCooldowns = useRef({})
+
   const load = () => client.get(`/crews/${id}`).then(r => setData(r.data)).catch(() => {})
 
   useEffect(() => { load() }, [id])
@@ -43,8 +45,6 @@ export default function CrewDetail() {
       load()
     } catch {}
   }
-
-  const nudgeCooldowns = useRef({})
 
   const nudge = async (targetId) => {
     const last = nudgeCooldowns.current[targetId]

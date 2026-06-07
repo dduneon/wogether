@@ -332,7 +332,7 @@ a{text-decoration:none;color:inherit}
 
 /* ── Theme Dropdown ── */
 .theme-popup-wrap{position:relative}
-.theme-dropdown{position:absolute;top:calc(100% + 8px);right:0;width:220px;background:var(--bg-2);border:1px solid var(--border-h);border-radius:var(--radius);box-shadow:0 16px 48px rgba(0,0,0,.6);z-index:9000;animation:fadeUp .2s ease}
+.theme-dropdown{position:fixed;top:64px;right:8px;width:220px;background:var(--bg-2);border:1px solid var(--border-h);border-radius:var(--radius);box-shadow:0 16px 48px rgba(0,0,0,.6);z-index:9000;animation:fadeUp .2s ease}
 .theme-drop-head{padding:12px 14px 8px;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);border-bottom:1px solid var(--border)}
 .theme-options{padding:6px}
 .theme-opt{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border-radius:var(--radius-sm);background:none;border:none;cursor:pointer;font-family:inherit;font-size:.88rem;color:var(--text);transition:background .15s}
