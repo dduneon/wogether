@@ -20,7 +20,7 @@ class CrewApi {
   }
 
   static Future<Map<String, dynamic>> joinCrew(String code) async {
-    final res = await dio.post('/api/crews/join', data: {'code': code});
+    final res = await dio.post('/api/crews/join', data: {'invite_code': code});
     return res.data;
   }
 

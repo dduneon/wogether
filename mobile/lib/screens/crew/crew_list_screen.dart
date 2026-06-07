@@ -191,11 +191,11 @@ class _CrewListScreenState extends State<CrewListScreen>
                                 try {
                                   final res = await CrewApi.joinCrew(code);
                                   if (!ctx.mounted) return;
-                                  Navigator.pop(ctx);
+                                  if (Navigator.canPop(ctx)) Navigator.pop(ctx);
                                   if (mounted) context.push('/crew/${res['id']}');
                                 } catch (e) {
                                   if (!ctx.mounted) return;
-                                  Navigator.pop(ctx);
+                                  if (Navigator.canPop(ctx)) Navigator.pop(ctx);
                                   if (mounted) ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(content: Text('유효하지 않은 코드예요.')));
                                 }
