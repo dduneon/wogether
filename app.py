@@ -888,8 +888,8 @@ def api_dashboard():
         .order_by(WorkoutLog.timestamp.desc()).first()
     quick_crew_id = (latest_log.crew_id if latest_log else (crews[0].id if crews else None))
 
-    # 이번 주 월~일 도트 (오늘 KST 기준)
-    week_start_kst = today_kst - timedelta(days=today_kst.weekday())  # 이번 주 월요일
+    # 이번 주 일~토 도트 (오늘 KST 기준)
+    week_start_kst = today_kst - timedelta(days=(today_kst.weekday() + 1) % 7)  # 이번 주 일요일
     my_week_logs = WorkoutLog.query.filter(
         WorkoutLog.user_id == user.id,
         WorkoutLog.timestamp >= start_utc,

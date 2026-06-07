@@ -1,12 +1,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import client from '../api/client'
 
-const DAYS = ['월', '화', '수', '목', '금', '토', '일']
+const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
 function getFirstDayOffset(year, month) {
-  // JS Date: 0=일, 1=월 ... 6=토 → 월요일 시작 기준 offset
-  const d = new Date(year, month - 1, 1).getDay()
-  return (d + 6) % 7 // 월=0, 화=1 ... 일=6
+  // JS Date: 0=일, 1=월 ... 6=토 → 일요일 시작 기준 offset
+  return new Date(year, month - 1, 1).getDay() // 일=0, 월=1 ... 토=6
 }
 
 function getDaysInMonth(year, month) {

@@ -679,11 +679,11 @@ class _StreakHeroCard extends StatelessWidget {
     required this.totalLogs, required this.totalGoal, required this.goalRemaining,
   });
 
-  static const _dayLabels = ['월', '화', '수', '목', '금', '토', '일'];
+  static const _dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
 
   @override
   Widget build(BuildContext context) {
-    final todayIdx = DateTime.now().weekday - 1; // 0=월 … 6=일
+    final todayIdx = DateTime.now().weekday % 7; // 0=일 … 6=토
 
     return Container(
       padding: const EdgeInsets.all(20),

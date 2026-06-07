@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import client from '../api/client'
 import WorkoutCalendar from '../components/WorkoutCalendar'
 
-const WEEK_LABELS = ['월', '화', '수', '목', '금', '토', '일']
+const WEEK_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 
 export default function Home() {
   const { user } = useAuth()
@@ -57,7 +57,7 @@ export default function Home() {
   } = data
 
   const totalPending = crews_data.reduce((sum, d) => sum + d.pending_count, 0)
-  const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1
+  const todayIdx = new Date().getDay() // 0=일 ... 6=토
 
   return (
     <div className="page-wrap">
