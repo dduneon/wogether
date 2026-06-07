@@ -620,7 +620,7 @@ class _CrewDetailScreenState extends State<CrewDetailScreen> with SingleTickerPr
         const SnackBar(content: Text('콕! 찔렀어요 👉')));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('1분에 한 번만 콕! 찌를 수 있어요.')));
+        const SnackBar(content: Text('10초에 한 번만 콕! 찌를 수 있어요.')));
     }
   }
 

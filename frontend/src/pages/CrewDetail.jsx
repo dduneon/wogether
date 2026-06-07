@@ -57,7 +57,7 @@ export default function CrewDetail() {
       nudgeCooldowns.current[targetId] = Date.now()
       alert('콕! 찔렀어요 👉')
     } catch (e) {
-      alert(e?.response?.data?.error || '1분에 한 번만 콕! 찌를 수 있어요.')
+      alert(e?.response?.data?.error || '10초에 한 번만 콕! 찌를 수 있어요.')
     }
   }
 
