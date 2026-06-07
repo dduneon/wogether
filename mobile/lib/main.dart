@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'firebase_options.dart';
 import 'utils/auth_store.dart';
 import 'utils/fcm_service.dart';
 import 'utils/theme.dart';
@@ -14,7 +15,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ko_KR');
   GoogleFonts.config.allowRuntimeFetching = false;
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await ThemeProvider().load();
   await AuthStore().load();
   if (AuthStore().isLoggedIn) await FcmService.init();

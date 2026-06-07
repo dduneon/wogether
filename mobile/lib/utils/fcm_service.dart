@@ -33,6 +33,7 @@ class FcmService {
     await _localNotif.initialize(
       const InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        iOS: DarwinInitializationSettings(),
       ),
     );
 
@@ -58,6 +59,7 @@ class FcmService {
               priority: Priority.high,
               icon: '@mipmap/ic_launcher',
             ),
+            iOS: const DarwinNotificationDetails(),
           ),
         );
       }
