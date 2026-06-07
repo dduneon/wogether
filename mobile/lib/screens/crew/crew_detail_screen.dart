@@ -608,9 +608,9 @@ class _CrewDetailScreenState extends State<CrewDetailScreen> with SingleTickerPr
 
   Future<void> _nudge(int targetId) async {
     final last = _nudgeCooldowns[targetId];
-    if (last != null && DateTime.now().difference(last).inSeconds < 60) {
+    if (last != null && DateTime.now().difference(last).inSeconds < 10) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('1분에 한 번만 콕! 찌를 수 있어요.')));
+        const SnackBar(content: Text('10초에 한 번만 콕! 찌를 수 있어요.')));
       return;
     }
     try {

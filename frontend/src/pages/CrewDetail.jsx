@@ -48,8 +48,8 @@ export default function CrewDetail() {
 
   const nudge = async (targetId) => {
     const last = nudgeCooldowns.current[targetId]
-    if (last && Date.now() - last < 60000) {
-      alert('1분에 한 번만 콕! 찌를 수 있어요.')
+    if (last && Date.now() - last < 10000) {
+      alert('10초에 한 번만 콕! 찌를 수 있어요.')
       return
     }
     try {
