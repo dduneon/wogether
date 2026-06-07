@@ -97,7 +97,25 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     final n = _notifications[i];
                     final style = _styleFor(n['type']);
                     final isUnread = n['is_read'] == false || n['is_read'] == 0;
-                    return Container(
+                    return Dismissible(
+                      key: ValueKey(n['id']),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.8),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
+                      ),
+                      onDismissed: (_) async {
+                        setState(() => _notifications.removeAt(i));
+                        try {
+                          await NotificationApi.deleteNotification(n['id']);
+                        } catch (_) {}
+                      },
+                      child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(
                         color: WColors.bg2,
@@ -161,6 +179,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           ],
                         ],
                       ),
+                    ),
                     );
                   },
                 ),

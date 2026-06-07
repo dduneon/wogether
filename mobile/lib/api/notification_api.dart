@@ -14,4 +14,8 @@ class NotificationApi {
     final res = await dio.get('/api/notifications/unread-count');
     return res.data['count'];
   }
+
+  static Future<void> deleteNotification(int id) async {
+    await dio.delete('/api/notifications/$id');
+  }
 }
