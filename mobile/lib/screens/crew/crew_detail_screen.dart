@@ -604,12 +604,24 @@ class _CrewDetailScreenState extends State<CrewDetailScreen> with SingleTickerPr
     if (ok == true) { await GoalApi.deleteGoal(goalId); _load(); }
   }
 
+  final Map<int, DateTime> _nudgeCooldowns = {};
+
   Future<void> _nudge(int targetId) async {
+    final last = _nudgeCooldowns[targetId];
+    if (last != null && DateTime.now().difference(last).inSeconds < 60) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('1분에 한 번만 콕! 찌를 수 있어요.')));
+      return;
+    }
     try {
       await CrewApi.nudge(widget.crewId, targetId);
+      _nudgeCooldowns[targetId] = DateTime.now();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('콕! 찔렀어요 👉')));
-    } catch (e) {}
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('1분에 한 번만 콕! 찌를 수 있어요.')));
+    }
   }
 
   Widget _buildFloatingTab() {

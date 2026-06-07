@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import client from '../api/client'
@@ -44,11 +44,21 @@ export default function CrewDetail() {
     } catch {}
   }
 
+  const nudgeCooldowns = useRef({})
+
   const nudge = async (targetId) => {
+    const last = nudgeCooldowns.current[targetId]
+    if (last && Date.now() - last < 60000) {
+      alert('1분에 한 번만 콕! 찌를 수 있어요.')
+      return
+    }
     try {
       await client.post(`/crews/${id}/nudge/${targetId}`)
+      nudgeCooldowns.current[targetId] = Date.now()
       alert('콕! 찔렀어요 👉')
-    } catch {}
+    } catch (e) {
+      alert(e?.response?.data?.error || '1분에 한 번만 콕! 찌를 수 있어요.')
+    }
   }
 
   const toggleLike = async (logId, currentLiked, currentCount, idx) => {
