@@ -819,7 +819,7 @@ def api_nudge(crew_id, target_user_id):
         return jsonify({'error': '해당 크루원을 찾을 수 없어요.'}), 404
     one_min_ago = datetime.utcnow() - timedelta(minutes=1)
     recent = Notification.query.filter_by(
-        sender_id=user.id, user_id=target.id, crew_id=crew.id, type='nudge'
+        sender_id=user.id, recipient_id=target.id, crew_id=crew.id, type='nudge'
     ).filter(Notification.created_at >= one_min_ago).first()
     if recent:
         return jsonify({'error': '1분에 한 번만 콕! 찌를 수 있어요.'}), 429
