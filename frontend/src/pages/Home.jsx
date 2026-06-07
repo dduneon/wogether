@@ -109,12 +109,7 @@ export default function Home() {
       )}
 
       {/* ── 2컬럼 레이아웃 ── */}
-      <div className="home-two-col" style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 340px',
-        gap: 20,
-        alignItems: 'start',
-      }}>
+      <div className="home-two-col">
 
         {/* ══ 왼쪽: 현황 ══ */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -242,7 +237,7 @@ export default function Home() {
         </div>
 
         {/* ══ 오른쪽: 크루 목록 ══ */}
-        <div style={{ position: 'sticky', top: 80, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="home-crew-col">
           <div className="section-label fade-up">
             내 크루
             {crews_data.length > 0 && (
