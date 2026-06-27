@@ -39,7 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final res = await AuthApi.login(_usernameCtrl.text.trim(), _passwordCtrl.text);
       await AuthStore().setToken(res['token'], res['user'] ?? {});
-      await FcmService.init();
+      FcmService.ensureToken();
       if (mounted) context.go('/');
     } catch (e) {
       if (mounted) {

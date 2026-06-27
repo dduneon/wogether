@@ -66,9 +66,19 @@ class FcmService {
       }
     });
 
-    // FCM 토큰 서버에 저장 (iOS는 APNS 토큰 준비까지 대기)
+    // 토큰 갱신 시 재저장
+    _fcm.onTokenRefresh.listen(_saveToken);
+
+    // 초기 토큰 저장 시도 (백그라운드로 실행 — 실패해도 onTokenRefresh가 커버)
+    _tryFetchAndSaveToken();
+  }
+
+  // 로그인 후 호출해서 토큰 재시도
+  static Future<void> ensureToken() => _tryFetchAndSaveToken();
+
+  static Future<void> _tryFetchAndSaveToken() async {
     if (Platform.isIOS) {
-      for (var i = 0; i < 10; i++) {
+      for (var i = 0; i < 30; i++) {
         try {
           final apns = await _fcm.getAPNSToken();
           if (apns != null) break;
@@ -76,16 +86,12 @@ class FcmService {
         await Future.delayed(const Duration(seconds: 1));
       }
     }
-    String? token;
     try {
-      token = await _fcm.getToken();
+      final token = await _fcm.getToken();
+      if (token != null) await _saveToken(token);
     } catch (e) {
       print('[FCM] 토큰 획득 실패: $e');
     }
-    if (token != null) await _saveToken(token);
-
-    // 토큰 갱신 시 재저장
-    _fcm.onTokenRefresh.listen(_saveToken);
   }
 
   static Future<void> _saveToken(String token) async {
