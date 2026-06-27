@@ -26,6 +26,12 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>운동 인증 사진 촬영에 카메라가 필요합니다.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>사진 저장을 위해 사진 라이브러리 접근이 필요합니다.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>운동 인증 사진 업로드를 위해 사진 라이브러리 접근이 필요합니다.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -49,12 +55,10 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	<key>NSCameraUsageDescription</key>
-	<string>운동 인증 사진 촬영에 카메라가 필요합니다.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>운동 인증 사진 업로드를 위해 사진 라이브러리 접근이 필요합니다.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>사진 저장을 위해 사진 라이브러리 접근이 필요합니다.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
