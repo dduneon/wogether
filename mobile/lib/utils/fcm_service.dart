@@ -78,16 +78,25 @@ class FcmService {
 
   static Future<void> _tryFetchAndSaveToken() async {
     if (Platform.isIOS) {
+      String? apns;
       for (var i = 0; i < 30; i++) {
         try {
-          final apns = await _fcm.getAPNSToken();
+          apns = await _fcm.getAPNSToken();
+          print('[FCM] APNs 토큰 시도 $i: ${apns != null ? "성공" : "null"}');
           if (apns != null) break;
-        } catch (_) {}
+        } catch (e) {
+          print('[FCM] APNs 토큰 오류 $i: $e');
+        }
         await Future.delayed(const Duration(seconds: 1));
+      }
+      if (apns == null) {
+        print('[FCM] APNs 토큰 획득 실패 — 권한 거부 또는 기기 미지원');
+        return;
       }
     }
     try {
       final token = await _fcm.getToken();
+      print('[FCM] FCM 토큰: ${token != null ? token.substring(0, 20) : "null"}...');
       if (token != null) await _saveToken(token);
     } catch (e) {
       print('[FCM] 토큰 획득 실패: $e');
