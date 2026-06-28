@@ -484,6 +484,11 @@ def _send_fcm(recipient_id, message, n_type='nudge'):
             token=recipient.fcm_token,
             notification=fcm_messaging.Notification(title=title, body=message),
             android=fcm_messaging.AndroidConfig(priority='high'),
+            apns=fcm_messaging.APNSConfig(
+                payload=fcm_messaging.APNSPayload(
+                    aps=fcm_messaging.Aps(sound='default'),
+                ),
+            ),
         ))
         logging.info(f'[FCM] 발송 성공 — user_id={recipient_id}, type={n_type}')
     except Exception as e:
